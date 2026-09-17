@@ -1,0 +1,40 @@
+# Jarvis -- core runtime.
+#
+# These keep the gateway startable and testable WITHOUT the voice stack: the
+# brain, every tool, the policy gate and the whole API work with just these.
+# Install with:  uv pip install --python <venv> -r requirements.txt
+#
+# Python 3.12 only (see README). torch 2.6 / chatterbox-tts / ctranslate2 have
+# no 3.14 wheels, which is why the interpreter is pinned by setup.ps1.
+
+# --- API ---
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9      # multipart/form-data for audio uploads
+websockets>=12.0
+
+# --- config / utilities ---
+python-dotenv>=1.0.1
+PyYAML>=6.0.1                # config/policy.yaml + config/mcp_servers.yaml
+httpx>=0.27.0                # brain HTTP clients, tools, smoke tests
+numpy>=1.26.0,<2.1.0         # pinned <2.1 to match the voice stack
+
+# --- brains ---
+google-genai>=1.0.0          # Gemini 2.5 Flash function calling
+# Ollama and Groq are reached over their OpenAI-compatible HTTP APIs via httpx,
+# so they need no SDK.
+
+# --- tools ---
+ddgs>=9.0.0                  # DuckDuckGo search + news, no API key
+                             # (successor to duckduckgo-search; web.py degrades
+                             #  to direct HTML scraping if it is unavailable)
+
+# --- MCP (client and server) ---
+mcp>=1.0.0
+
+# --- audio ---
+soundfile>=0.12.1            # decode/encode WAV for the orb and CLI
+
+# Whisper (faster-whisper) needs the CUDA runtime DLLs shipped inside
+# ctranslate2's wheels. On some Windows setups those do not resolve, in which
+# case STT_DEVICE=cpu with int8 is the fallback -- still responsive for small.en.

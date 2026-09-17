@@ -1,0 +1,150 @@
+# Jarvis policy. This file, not the language model, decides what may run.
+#
+# Tier resolution is most-restrictive-first: a name in `deny` beats the same name
+# in `confirm`, which beats `auto`. Entries may be exact names or globs. A tool
+# matching nothing falls to `default_tier` -- keep that at `confirm`.
+#
+#   auto    - read-only. Runs immediately, no question asked.
+#   confirm - has a side effect. Jarvis asks out loud and waits for a yes;
+#             silence past confirm_timeout_seconds is a NO.
+#   deny    - refused outright, and never offered to the model as callable.
+
+version: 1
+
+default_tier: confirm
+
+tiers:
+  auto:
+    # --- observation only: no writes, no side effects ---
+    - system_info          # host, cpu, memory, disk, local time
+    - web_search           # DuckDuckGo, no API key
+    - web_news
+    - get_weather          # Open-Meteo, no API key
+    - memory_remember      # storing a note is additive, never destructive
+    - memory_recall
+    - memory_list
+    - fs_list
+    - fs_read
+    - clipboard_read
+    - mail_list_unread     # reading an inbox changes nothing
+    - mail_read
+    - calendar_list
+    - audit_tail           # what has Jarvis actually done?
+    - browser_read         # reading the open page changes nothing
+
+  confirm:
+    - fs_write
+    - fs_mkdir
+    - fs_delete            # deletion is never auto
+    - app_launch
+    - shell_run
+    - clipboard_write
+    - mail_send            # sending on the master's behalf is always confirmed
+    - calendar_add
+    - browser_open
+    - browser_click
+    - browser_type
+    - browser_screenshot
+    - browser_close
+    # External MCP tools inherit a tier; anything unlisted still needs a yes
+    # because default_tier is confirm. These globs make the intent explicit.
+    - "mcp__*"
+
+  deny:
+    # Registered on purpose (see tools/registry.py) so that an attempt is a
+    # logged refusal rather than an unknown-tool error -- and so the handler is
+    # never reachable even if this file were edited carelessly.
+    - shell_run_admin
+    - registry_write
+    - disk_format
+    # Irreversible on an external service: refuse rather than ask.
+    - "mcp__*__drop_*"
+
+# Scanned only over EXECUTION SURFACES -- the arguments of tools that can run
+# something (shell, app launch, filesystem, browser, external MCP tools). A note
+# or an email that merely contains the words is not blocked, because no
+# interpreter ever sees those bytes. This is what defuses prompt injection from a
+# web page: the injected command still has to get past this list to reach a shell.
+dangerous_patterns:
+  - '(?i)\brm\s+-(?:[a-z]*r[a-z]*f|[a-z]*f[a-z]*r)\b'   # rm -rf
+  - '(?i)\brm\s+-[a-z]*r\b'                              # any recursive rm
+  - '(?i)\b(?:mkfs|fdisk|diskpart)\b'                    # partition tables
+  - '(?i)\bformat\s+[a-z]:'                              # format C:
+  - '(?i)\bcipher\s+/w\b'                                # wipe free space
+  - '(?i)\bvssadmin\s+delete\b'                          # delete shadow copies
+  - '(?i)\bgit\s+push\b[^\n]*(?:--force\b|(?<![\w-])-f(?![\w-]))'
+  - '(?i)\bgit\s+(?:reset\s+--hard|clean\s+-[a-z]*f|filter-branch)\b'
+  - '(?i)\breg(?:\.exe)?\s+delete\b'
+  - '(?i)\b(?:shutdown|reboot)\s+(?:/s|/r|-h|-r|now)\b'
+  - '(?i)\b(?:stop|disable)-service\b'
+  - '(?i)\bset-executionpolicy\b'
+  - '(?i)\bremove-item\b[^\n]*-recurse[^\n]*-force'
+  - '(?i)\bdel\s+/[sfq]\b'
+  - ':\(\)\s*\{.*\}\s*;\s*:'                             # fork bomb
+
+# Refused outright for any tool with an execution surface, whatever the master says
+# yes to: the blast radius here is the operating system, not the master's files.
+# These are NOT applied to pure reads -- refusing to read a file under AppData
+# protects nothing and breaks ordinary work (it is where temp files live).
+protected_paths:
+  - 'C:\Windows'
+  - 'C:\Program Files'
+  - 'C:\Program Files (x86)'
+  - 'C:\ProgramData'
+  - 'C:\$Recycle.Bin'
+
+# Key material and credentials. Reading these is not forbidden -- the master may
+# legitimately ask -- but it is never automatic. Any tool touching these is forced
+# to ask first, because a read can leave the machine (a cloud brain, an email).
+sensitive_paths:
+  - 'C:\Users\ahiva\.ssh'
+  - 'C:\Users\ahiva\.aws'
+  - 'C:\Users\ahiva\.gnupg'
+  - 'C:\Users\ahiva\AppData\Roaming\Microsoft\Crypto'
+
+# Where the file tools (fs_write, fs_mkdir, fs_delete) may write. Reads are
+# unrestricted except for protected_paths. Omit this key to inherit the shell
+# workdir_roots below.
+file_write_roots:
+  - 'C:\Users\ahiva\OneDrive\Desktop'
+  - 'C:\Users\ahiva\Documents'
+  - 'C:\Users\ahiva\Downloads'
+  - '%TEMP%'
+
+shell:
+  enabled: true
+  # Only these may be the FIRST token of a command, and each must be a real
+  # executable found on PATH. Shell builtins (dir, echo, type, cd) are absent on
+  # purpose: they can only run under `cmd /c`, which would add a parsing layer
+  # that a crafted argument could escape. Use fs_list and fs_read instead.
+  allowed_executables:
+    - git
+    - node
+    - npm
+    - npx
+    - python
+    - python3
+    - uv
+    - pip
+    - pytest
+    - ruff
+    - where
+    - whoami
+    - hostname
+    - tasklist
+    - curl
+    - ffmpeg
+    - tree
+    - findstr
+  # A command's working directory must resolve inside one of these.
+  workdir_roots:
+    - 'C:\Users\ahiva\OneDrive\Desktop'
+    - 'C:\Users\ahiva\Documents'
+    - 'C:\Users\ahiva\Downloads'
+    - '%TEMP%'
+  timeout_seconds: 20
+  max_output_chars: 8000
+  # Chaining (&&, ;, |, >, &, ^) and variable expansion (%) are off. Chaining is
+  # the single most common way a benign allow-listed command becomes an arbitrary
+  # one; expansion is how an argument smuggles a second one past this list.
+  allow_chained_commands: false

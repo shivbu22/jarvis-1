@@ -1,0 +1,26 @@
+# Jarvis -- optional voice stack.
+#
+# Install AFTER torch, in this order:
+#   uv pip install --python <venv> torch==2.6.0 torchaudio==2.6.0 \
+#       --index-url https://download.pytorch.org/whl/cu124     # NVIDIA, or
+#   uv pip install --python <venv> torch==2.6.0 torchaudio==2.6.0   # CPU
+#   uv pip install --python <venv> -r requirements-voice.txt
+#
+# Without this file installed, Jarvis still runs: STT reports unavailable, and
+# TTS falls back to the Windows SAPI voice (see apps/gateway/tts.py), so the
+# voice loop is never simply broken. See README "Voice stack".
+
+# --- STT (local, 16 kHz, no torch required -- CTranslate2 based) ---
+faster-whisper>=1.0.3,<2.0.0
+
+# --- TTS: the cloned "Jarvis" voice (needs torch 2.6.0) ---
+chatterbox-tts>=0.1.1
+
+# --- wake word: "Hey Jarvis", CPU-only via ONNX Runtime, no account needed ---
+openwakeword>=0.6.0
+onnxruntime>=1.17.0
+
+# Do not let pip/uv resolve these to newer majors: chatterbox-tts expects
+# torch 2.6.0, and numpy >=2.1 breaks the audio path used here.
+setuptools>=70,<81
+numpy<2.1.0

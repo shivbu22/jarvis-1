@@ -1,0 +1,45 @@
+# External MCP servers Jarvis can use as extra tools.
+#
+# Both transports are supported, unlike the reference project this was inspired
+# by (voice-mcp-agent supports HTTP/SSE only):
+#
+#   stdio  - Jarvis spawns the server as a subprocess (npx ..., python -m ...)
+#   http   - SSE or streamable-HTTP endpoint
+#
+# Every tool a server exposes is namespaced `mcp__<server>__<tool>`, so policy
+# rules in config/policy.yaml can address them individually or by glob. A tool
+# not named in any tier list needs confirmation, and tier `deny` wins over both.
+#
+# `allowed_tools` is an fnmatch allowlist applied BEFORE policy: a tool not listed
+# is never even registered, so it cannot be called or injected into a prompt.
+# Use ["*"] to expose everything a trusted local server offers.
+
+version: 1
+
+servers: []
+
+# --- Worked examples. Uncomment, then restart the gateway. ---
+#
+# - name: filesystem
+#   transport: stdio
+#   command: npx
+#   args: ["-y", "@modelcontextprotocol/server-filesystem", "C:\\Users\\ahiva\\OneDrive\\Desktop"]
+#   allowed_tools: ["list_directory", "read_text_file"]   # no writes, on purpose
+#   enabled: true
+#
+# - name: fetch
+#   transport: http
+#   url: http://127.0.0.1:8008/sse
+#   allowed_tools: ["fetch"]
+#   headers:
+#     Authorization: "Bearer ${MCP_FETCH_TOKEN}"
+#   enabled: false
+#
+# - name: k8s
+#   transport: http
+#   url: http://localhost:8092/sse
+#   allowed_tools: ["list_*", "get_*", "describe_*"]      # read-only subset
+#   auth:
+#     type: secret_key
+#     env_var: K8S_MCP_SECRET
+#   enabled: false

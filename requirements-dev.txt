@@ -1,0 +1,13 @@
+# Jarvis -- development and test dependencies.
+#   uv pip install --python <venv> -r requirements-dev.txt
+#   uv pip install --python <venv> -r requirements.txt -r requirements-dev.txt
+
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+ruff>=0.6.0
+
+# Browser automation tool (apps/gateway/tools/browser.py). Chromium itself is
+# downloaded separately and cached OUTSIDE OneDrive:
+#   set PLAYWRIGHT_BROWSERS_PATH=%LOCALAPPDATA%\Jarvis\ms-playwright
+#   uv run python -m playwright install chromium
+playwright>=1.44.0

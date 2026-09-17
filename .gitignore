@@ -1,0 +1,41 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# The venv lives OUTSIDE this folder by default (UV_PROJECT_ENVIRONMENT ->
+# %LOCALAPPDATA%\Jarvis\venv) because a torch 2.6 venv is ~6 GB and OneDrive
+# syncs it badly. These entries cover the case where someone overrides that.
+.venv/
+venv/
+
+# --- Secrets: never commit ---
+.env
+.env.local
+*.key
+
+# --- Runtime state (regenerable, may contain personal data) ---
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/audit.jsonl
+data/*.wav
+data/*.log
+
+# --- Voice material: big binaries, and the reference WAV is not ours to ship ---
+voices/*.pt
+voices/*.wav
+voices/*.mp3
+# Conditioning latents are derived from the master's reference clip: biometric.
+voices/*.json
+
+# --- Node / orb UI ---
+node_modules/
+apps/orb/dist/
+apps/orb/.vite/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db

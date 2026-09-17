@@ -1,0 +1,25 @@
+# Jarvis brain: the same weights as the base model, loaded so it actually fits.
+#
+# Why this file exists. Ollama 0.34 loads ``qwen3:4b`` with a 65536-token context
+# by default. On this machine that is fatal: the KV cache inflates the model to
+# ~13 GB, only 16% of it fits in the 4 GB GPU, and the rest runs on the CPU at
+# roughly 6 tokens per second -- so a single spoken question exceeds any sane
+# timeout. Measured with ``ollama ps`` and the timings in ``/api/chat``:
+#
+#   context 65536 -> 13 GB resident -> 84%/16% CPU/GPU -> 6 tok/s
+#
+# An 8k context is far more than a spoken turn needs (the system prompt is ~700
+# tokens and the tool schemas ~3300) while keeping the model resident in VRAM.
+#
+# Create it once; ``scripts\setup.ps1`` does this for you:
+#
+#   ollama create jarvis-brain:4b -f config\ollama\Modelfile.jarvis
+#
+# Pointing JARVIS_OLLAMA_MODEL at this name is what keeps Jarvis responsive. The
+# base model is still what gets pulled; this only changes how it is loaded.
+
+FROM qwen3:4b
+
+PARAMETER num_ctx 8192
+PARAMETER temperature 0.2
+PARAMETER top_p 0.9

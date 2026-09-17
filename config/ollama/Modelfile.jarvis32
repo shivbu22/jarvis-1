@@ -1,0 +1,23 @@
+# Jarvis brain: the llama3.2 variant of the tuned load-out.
+#
+# Same story as Modelfile.jarvis (the qwen3 variant): Ollama 0.34 loads these models
+# with a 65536-token context by default. For llama3.2:3b that is 10 GB resident with
+# ~79% of it on the CPU. An 8192 context keeps it mostly in VRAM, which is what a
+# spoken assistant actually needs -- a turn's prompt is under 4000 tokens.
+#
+# Create it once; scripts\setup.ps1 does this for you:
+#
+#   ollama create jarvis-brain:3b -f config\ollama\Modelfile.jarvis32
+#
+# This is the DEFAULT brain as of the latency work: measured on this machine it
+# answers in 1-4 seconds per model call where qwen3:4b takes 20-30, because qwen3
+# reasons at length before speaking and llama3.2 does not. The qwen3 variant
+# (jarvis-brain:4b) remains the right choice when answer *quality* on hard
+# multi-step questions matters more than latency; set OLLAMA_MODEL=qwen3:4b in .env
+# to get it, and Jarvis will prefer jarvis-brain:4b automatically.
+
+FROM llama3.2:3b
+
+PARAMETER num_ctx 8192
+PARAMETER temperature 0.2
+PARAMETER top_p 0.9
