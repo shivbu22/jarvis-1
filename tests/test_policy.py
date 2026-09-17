@@ -288,3 +288,30 @@ def test_writing_a_system_file_is_refused_outright(policy: Policy) -> None:
     )
     assert decision.allowed is False
     assert decision.tier == "deny"
+
+
+def test_env_file_is_sensitive_on_any_tool(policy: Policy) -> None:
+    """The project .env holds SMTP passwords and API keys. A prompt injection
+    reading it through an auto-tier tool must still stop and ask."""
+    decision = policy.screen(
+        "fs_read", {"path": r"C:\Users\ahiva\OneDrive\Desktop\jarvis\.env"},
+        executing=False,
+    )
+    assert decision.allowed is True
+    assert decision.needs_confirmation is True
+    assert "credential" in decision.reason.lower()
+
+
+def test_powershell_encoded_command_is_refused(policy: Policy) -> None:
+    """-EncodedCommand smuggles arbitrary code past every text pattern as base64."""
+    import base64
+
+    payload = base64.b64encode(b"Remove-Item C:\\ -Recurse -Force").decode()
+    for args in (
+        {"app": "powershell", "argument": f"-EncodedCommand {payload}"},
+        {"command": f"powershell -EncodedCommand {payload}"},
+    ):
+        tool = "app_launch" if "app" in args else "shell_run"
+        decision = policy.screen(tool, args, executing=True)
+        assert decision.allowed is False, args
+        assert decision.pattern, args

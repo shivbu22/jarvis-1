@@ -160,10 +160,40 @@ def test_summaries_are_written_for_the_ear() -> None:
     assert describe_call("shell_run", {"command": "git status"}) == "run the command git status"
     assert describe_call("fs_delete", {"path": "C:\\notes\\old.txt"}).startswith("delete")
     assert describe_call("app_launch", {"app": "notepad"}) == "open notepad"
-    assert describe_call("mail_send", {"to": "x@y.z", "subject": "hi"}) == "send an email x@y.z"
+    assert (
+        describe_call("mail_send", {"to": "x@y.z", "subject": "hi"})
+        == "send an email to x@y.z, subject hi"
+    )
 
 
 def test_long_values_are_truncated() -> None:
-    summary = describe_call("shell_run", {"command": "x" * 500})
-    assert len(summary) < 160
+    summary = describe_call("fs_write", {"path": "C:\\n\\" + "x" * 500 + ".txt", "content": "y"})
+    assert len(summary) < 200
     assert summary.endswith("...")
+
+
+def test_shell_commands_are_never_silently_truncated() -> None:
+    """The danger of a command can live in its tail; approval requires hearing it all."""
+    command = "git commit -m " + "x" * 300
+    summary = describe_call("shell_run", {"command": command})
+    assert command in summary, "the command tail must survive the summary"
+
+
+def test_mail_summaries_disclose_subject_and_body() -> None:
+    """Approve this email means nothing without hearing WHAT would be sent."""
+    summary = describe_call(
+        "mail_send",
+        {"to": "boss@x.com", "subject": "raise", "body": "I resign effective today"},
+    )
+    assert "boss@x.com" in summary
+    assert "raise" in summary
+    assert "I resign effective today" in summary
+
+
+def test_app_launch_summaries_disclose_the_argument() -> None:
+    """Open powershell alone hides the payload; the argument must be spoken."""
+    summary = describe_call(
+        "app_launch", {"app": "powershell", "argument": "-NoProfile -Command Get-Date"}
+    )
+    assert "powershell" in summary
+    assert "-NoProfile -Command Get-Date" in summary

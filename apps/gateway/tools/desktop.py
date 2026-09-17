@@ -254,8 +254,18 @@ def app_launch(ctx: ToolContext, app: str, argument: str = "") -> ToolOutput:
         return ToolOutput(text="Which application should I open?", ok=False)
 
     # 1) An existing file, folder or .lnk: hand it to the shell's own opener.
+    # Scripts are excluded: startfile EXECUTES .bat/.cmd/.ps1, so an injection
+    # that plants one in a write root must not be launchable by name.
     candidate = _resolve(target)
     if candidate.exists():
+        if candidate.suffix.lower() in {".bat", ".cmd", ".ps1", ".vbs", ".js", ".jse", ".wsf", ".wsh"}:
+            return ToolOutput(
+                text=(
+                    f"{candidate.name} is a script, and I do not launch scripts as if "
+                    "they were applications. Ask for the program you want instead."
+                ),
+                ok=False,
+            )
         if not hasattr(os, "startfile"):
             return ToolOutput(text="Opening files is only supported on Windows.", ok=False)
         try:

@@ -79,6 +79,7 @@ DEFAULT_POLICY: dict[str, Any] = {
         "deny": ["shell_run_admin", "registry_write", "disk_format"],
     },
     "dangerous_patterns": [
+        r"(?i)(?<![\w-])-enc(?:odedcommand)?\b",
         r"(?i)\brm\s+-(?:[a-z]*r[a-z]*f|[a-z]*f[a-z]*r)\b",
         r"(?i)\brm\s+-[a-z]*r\b",
         r"(?i)\b(?:mkfs|fdisk|diskpart)\b",
@@ -94,6 +95,11 @@ DEFAULT_POLICY: dict[str, Any] = {
         r"(?i)\bremove-item\b[^\n]*-recurse[^\n]*-force",
         r"(?i)\bdel\s+/[sfq]\b",
         r":\(\)\s*\{.*\}\s*;\s*:",
+        # PowerShell -EncodedCommand smuggles arbitrary code past every pattern
+        # as base64. Refused wherever it appears on an execution surface. The
+        # lookbehind (not \b) is deliberate: \b before a '-' can never match,
+        # because '-' is a non-word character on both sides.
+        r"(?i)(?<![\w-])-enc(?:odedcommand)?\b",
     ],
     # Friendly names the model may use for app_launch, mapped to something
     # launchable: an executable on PATH, an absolute path, or a URI handler.
@@ -138,6 +144,7 @@ DEFAULT_POLICY: dict[str, Any] = {
     # touches them is forced to ask first, because a read can be exfiltrated to a
     # cloud brain or an email.
     "sensitive_paths": [
+        ".env",
         r"C:\Users\ahiva\.ssh",
         r"C:\Users\ahiva\.aws",
         r"C:\Users\ahiva\.gnupg",

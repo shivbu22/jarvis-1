@@ -244,6 +244,11 @@ def describe_call(tool: str, args: dict[str, Any]) -> str:
 
     Written for the ear: no JSON, no field names, and it leads with the verb so
     the master can answer without waiting for the whole sentence.
+
+    Truncation has a safety rule, not just a length one: for the tools where the
+    DANGER lives in the tail of the text (shell commands, mail bodies), the tail
+    must never be silently cut -- a master cannot approve what was never spoken.
+    Those are disclosed in full and marked; everything else truncates as before.
     """
     def first(*names: str) -> Any:
         for name in names:
@@ -266,6 +271,29 @@ def describe_call(tool: str, args: dict[str, Any]) -> str:
         "browser_click": "click",
         "browser_type": "type into the page",
     }.get(tool, f"use {label} on")
+
+    # Full disclosure: the payload must be heard in its entirety for these.
+    if tool == "shell_run":
+        command = str(first("command") or "")
+        cwd = str(first("cwd") or "")
+        return f"run the command {command}" + (f" in {cwd}" if cwd else "")
+    if tool == "mail_send":
+        to = str(first("to") or "")
+        subject = str(first("subject") or "(no subject)")
+        body = str(first("body") or "")
+        summary = f"send an email to {to}, subject {subject}"
+        if body:
+            summary += f", saying: {body}"
+        return summary
+    if tool == "app_launch":
+        # The argument must be spoken ("open powershell" alone hides the payload)
+        # but may be truncated: anything pattern-dangerous here is refused outright
+        # by the deny-list long before a summary is ever spoken.
+        app = str(first("app") or "")
+        argument = str(first("argument") or "")
+        if len(argument) > 120:
+            argument = argument[:117] + "..."
+        return f"open {app}" + (f" with {argument}" if argument else "")
 
     target = first("command", "path", "url", "to", "title", "selector", "name", "app", "text")
     if target is None:

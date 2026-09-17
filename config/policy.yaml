@@ -66,6 +66,10 @@ tiers:
 # interpreter ever sees those bytes. This is what defuses prompt injection from a
 # web page: the injected command still has to get past this list to reach a shell.
 dangerous_patterns:
+  # PowerShell -EncodedCommand smuggles arbitrary code as base64 that no other
+  # pattern can read. The lookbehind (not \b) matters: \b before a '-' never
+  # matches, because '-' is a non-word character on both sides.
+  - '(?i)(?<![\w-])-enc(?:odedcommand)?\b'
   - '(?i)\brm\s+-(?:[a-z]*r[a-z]*f|[a-z]*f[a-z]*r)\b'   # rm -rf
   - '(?i)\brm\s+-[a-z]*r\b'                              # any recursive rm
   - '(?i)\b(?:mkfs|fdisk|diskpart)\b'                    # partition tables
@@ -81,6 +85,9 @@ dangerous_patterns:
   - '(?i)\bremove-item\b[^\n]*-recurse[^\n]*-force'
   - '(?i)\bdel\s+/[sfq]\b'
   - ':\(\)\s*\{.*\}\s*;\s*:'                             # fork bomb
+  # PowerShell -EncodedCommand carries arbitrary code as base64 that no pattern
+  # below can ever read. Refused wherever it appears in an execution surface.
+  - '(?i)\b-enc(?:odedcommand)?\b'
 
 # Refused outright for any tool with an execution surface, whatever the master says
 # yes to: the blast radius here is the operating system, not the master's files.
@@ -96,7 +103,11 @@ protected_paths:
 # Key material and credentials. Reading these is not forbidden -- the master may
 # legitimately ask -- but it is never automatic. Any tool touching these is forced
 # to ask first, because a read can leave the machine (a cloud brain, an email).
+# .env is listed deliberately: it holds SMTP passwords and API keys, and a prompt
+# injection that reads it through an auto-tier tool would exfiltrate them without
+# ever triggering a confirmation.
 sensitive_paths:
+  - '.env'
   - 'C:\Users\ahiva\.ssh'
   - 'C:\Users\ahiva\.aws'
   - 'C:\Users\ahiva\.gnupg'
