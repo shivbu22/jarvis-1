@@ -158,3 +158,16 @@ class OllamaBrain(OpenAICompatBrain):
         self.model_note = f"{self.model} is not installed; using {fallback}"
         self.model = fallback
         return fallback
+
+    async def warm_up(self) -> bool:
+        """Pre-load model weights into VRAM and pin them so first turn has zero load lag."""
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{self.host}/api/generate",
+                    json={"model": self.model, "prompt": "", "keep_alive": -1},
+                )
+                return response.status_code == 200
+        except Exception:
+            return False
+

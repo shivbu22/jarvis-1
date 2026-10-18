@@ -85,6 +85,54 @@ cap truncated the turn mid-thought, the visible answer came back *empty*, and th
 reported a bare "Done." 1024 measured as the smallest cap that reliably fits reasoning
 plus a spoken answer.
 
+### The big brain: a local model relay, with no VRAM spent
+
+The local model is the fallback, not the destination. A **relay** — an
+OpenAI-compatible server on loopback that fronts large hosted models — gives Jarvis a
+much sharper brain without competing with Whisper for the 4 GB of VRAM:
+
+```dotenv
+JARVIS_RELAY_URL=http://127.0.0.1:20128/api/v1/vscode/sk-your-key-here
+JARVIS_RELAY_MODEL=claude-haiku-4.5
+```
+
+A configured relay leads the chain in `auto` mode, with Ollama directly behind it.
+What that buys, verified against the real prompt and tool schemas:
+
+* **Native tool calls.** `get_weather` came back as a real provider-side tool call with
+  `finish_reason=tool_calls`, so the failure that made the local brain look broken —
+  `{"name": "ask_user", "parameters": "I am working, sir."}` printed to the orb as a
+  "reply" — cannot happen on this path.
+* **Token streaming**, so the first words appear while the sentence is still being
+  written.
+
+Two things about it are deliberate. First, the URL **is** the credential (that is how
+these relays hand out access), and brain errors are spoken aloud and printed in the
+orb — so Jarvis reads and logs only `127.0.0.1:20128`, never the path, and redacts
+anything credential-shaped that a provider echoes back. Second, it is **not** treated
+as a local brain: the socket is on loopback, the model behind it is not, so
+`JARVIS_OFFLINE=1` never builds it and `/status` says so.
+
+**When the relay says no, it costs one turn, not every turn.** The relay's account
+pool does run dry — observed live: HTTP `401 All 1 connection(s) credits exhausted`, and
+`429 ... are cooling down` with a `reset_seconds` hint. Harmless, because the relay
+stands down: it fails in microseconds while blocked (the turn goes to Ollama instead of
+paying a pointless round trip), stands down for `reset_seconds` when the relay says so
+and a minute otherwise, and comes back by itself once credits return or the serving app
+is restarted.
+
+To measure a swap rather than guess at it:
+
+```powershell
+python scripts\bench_brains.py --models claude-haiku-4.5 claude-sonnet-4.5 --local
+```
+
+That runs a greeting, a tool call, a memory write, a recall and a web search through
+each candidate with the real system prompt, and reports time-to-first-word, total time,
+whether the right tool was called natively, and whether a tool call leaked out as prose.
+Results append to `data/brain_bench.jsonl` so the next swap compares against numbers
+instead of impressions.
+
 If Ollama ever fails to start again, Jarvis falls back to a brain that runs **inside
 the gateway**, loading the GGUF Ollama already downloaded, read-only:
 
@@ -200,8 +248,36 @@ python scripts\build_jarvis_voice.py --make-reference   # or synthesise a placeh
 python scripts\build_jarvis_voice.py --prefetch         # fetch the cloned-voice model
 ```
 
+**Speaking while thinking** — the reply is chunked as it streams and each chunk
+is synthesised while the rest is still being written, so the wait is the slower of
+the two rather than their sum. The first chunk is deliberately small: synthesis
+costs ~6 s of *fixed* work per call on CPU (measured; 4 clauses in 4 calls took
+23.9 s against 12.7 s for the same words in one call, and 2–4 parallel workers
+measured 1.00×, so extra calls cannot be bought back with concurrency). Only the
+round that is actually the answer is spoken — a round that narrates before
+calling a tool is not the answer, and hearing it out loud was a real bug.
+
+**Memory that arrives by itself** — notes you asked Jarvis to keep are searched
+against every new message and injected when they look relevant, so it does not
+have to *decide* to remember. Queries made only of stopwords recall nothing, and a
+match needs a shared content word: the search index ORs its terms, so without that
+rule a note about a birthday would match every question containing "the".
+
+**Asking instead of guessing** — `ask_user` suspends the turn, speaks the
+question, and resumes with the answer. Silence is not agreement: with no reply the
+turn carries on and states its assumption. The window is short
+(`QUESTION_TIMEOUT_SECONDS`, 45 s) because the turn is suspended for its whole
+duration, and a small local model does sometimes ask something it did not need to.
+
 **Wake word** — `hey_jarvis` via openWakeWord, ONNX on the CPU, no account, no
 API key. Mic frames go only to your own gateway process.
+
+The `openwakeword` wheel ships *without* its ONNX weights, so the first use
+fetches ~10 MB once (`scripts/setup.ps1` does this up front). Until then
+`/health` reports `wake.ready: false` with the exact command to fetch them —
+`available` only means the package is installed, and reporting that as "ready"
+was a real bug: the orb showed a green pill over a detector that could not load
+a model at all.
 
 ---
 
@@ -215,6 +291,8 @@ API key. Mic frames go only to your own gateway process.
 | GET | `/audit` | what Jarvis has actually done, including refusals |
 | GET | `/v1/confirmations` | actions currently awaiting permission |
 | POST | `/v1/confirm` | approve or refuse a held action by id |
+| GET | `/v1/questions` | questions Jarvis is waiting on an answer to |
+| POST | `/v1/answer` | answer a held question by id, resuming the turn |
 | POST | `/stt` | audio file → transcript |
 | POST | `/tts` | text → WAV |
 | POST | `/v1/turn` | audio → transcript + tools + reply + audio |
@@ -250,7 +328,9 @@ matter most:
 
 | Setting | Default | Why |
 | --- | --- | --- |
-| `JARVIS_BRAIN` | `auto` | Gemini when keyed, else Ollama |
+| `JARVIS_BRAIN` | `auto` | relay when configured, else Gemini when keyed, else Ollama |
+| `JARVIS_RELAY_URL` | *(unset)* | a local OpenAI-compatible relay; its path is the key and is never spoken |
+| `JARVIS_RELAY_MODEL` | `claude-haiku-4.5` | which model the relay should serve |
 | `OLLAMA_MODEL` | `qwen3:4b` | the tuned `jarvis-brain:4b` is preferred automatically when present |
 | `JARVIS_LOCAL_FALLBACK` | `1` | in-process GGUF last resort; skipped when the library is absent |
 | `JARVIS_GGUF_PATH` | *(unset)* | a specific `.gguf`; wins over borrowing Ollama's |
@@ -333,7 +413,7 @@ apps/gateway/
   policy.py       the gate: tiers, deny-list, shell jail, write roots
   confirm.py      held actions, spoken yes/no, deny-on-timeout
   audit.py        append-only trail of every decision
-  brain/          Gemini, Ollama, Groq behind one interface, with failover
+  brain/          relay, Gemini, Ollama, Groq behind one interface, with failover
   tools/          web, memory, system, desktop, browser, mail, calendar
   mcp_client.py   external MCP servers as namespaced tools
   stt.py tts.py wake.py   hearing, speaking, "Hey Jarvis"

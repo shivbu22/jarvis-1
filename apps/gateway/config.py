@@ -78,6 +78,18 @@ class Settings:
     gguf_path: str = ""
     local_fallback_ctx: int = 8192
     local_fallback_gpu_layers: int = -1
+    # --- local model relay (optional) ---
+    # An OpenAI-compatible server on loopback that fronts real models. It gives
+    # Jarvis a large brain with native tool calls at cloud latency without spending
+    # VRAM; the cost is that the request leaves the machine, so offline mode never
+    # builds it. The URL carries the key in its path, which is why it is spoken and
+    # logged only as a host (see brain/relay.py).
+    relay_url: str = ""
+    relay_key: str = ""
+    relay_model: str = "claude-haiku-4.5"
+    relay_max_tokens: int = 0
+    relay_timeout_seconds: float = 60.0
+
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
     groq_api_key: str = ""
@@ -85,17 +97,23 @@ class Settings:
     brain_timeout_seconds: float = 300.0
     max_tool_iterations: int = 6
     history_turns: int = 12
+    ultimate_power: bool = False
 
     # --- STT ---
-    whisper_model: str = "small.en"
+    whisper_model: str = "tiny.en"
     stt_device: str = "cuda"  # cuda | cpu  (auto also accepted)
     stt_compute_type: str = "auto"  # auto -> int8_float16 on cuda, int8 on cpu
     stt_profile: str = "fast"
     stt_language: str = "en"
     stt_vad_filter: bool = True
+    stt_vad_threshold: float = 0.2  # Highly sensitive VAD threshold for whispers and quiet voice
+    stt_initial_prompt: str = (
+        "Conversational speech, technical commands, quiet voice, whispered queries."
+    )
 
     # --- TTS ---
-    tts_engine: str = "auto"  # auto | chatterbox | sapi
+    tts_engine: str = "auto"  # auto | edge | chatterbox | sapi
+    tts_edge_voice: str = "en-GB-RyanNeural"  # British male neural JARVIS voice
     # The cloned voice needs a ~1.5 GB model download. Allowing that implicitly
     # would mean a spoken reply taking five minutes with no explanation, so it is
     # off by default and enabled by the setup script or explicitly here.
@@ -122,11 +140,17 @@ class Settings:
     # --- wake word ---
     wake_enabled: bool = True
     wake_model: str = "hey_jarvis"
-    wake_threshold: float = 0.5
+    wake_threshold: float = 0.35  # Sensitive wake word detection for soft speech and whispers
     wake_inference_framework: str = "onnx"
 
     # --- safety ---
     confirm_timeout_seconds: float = 30.0
+    # Longer than the permission window, because a question expects words rather
+    # than a verdict they are already looking at. Deliberately not much longer:
+    # a turn is *suspended* for this whole window, and a small local model does
+    # sometimes ask something it did not need to ask (measured: a greeting became
+    # a 140-second turn at 120 s). Bounded, that mistake costs seconds.
+    question_timeout_seconds: float = 45.0
     policy_path: Path | None = None
     audit_enabled: bool = True
 
@@ -194,6 +218,11 @@ def load_settings() -> Settings:
         # OllamaBrain.resolve_model() picks ``jarvis-brain:4b`` automatically; leave
         # this as the stock name so ``ollama pull qwen3:4b`` is the single command a
         # new machine needs, and the tuned variant is an optional improvement.
+        relay_url=_str("JARVIS_RELAY_URL", "").rstrip("/"),
+        relay_key=_str("JARVIS_RELAY_KEY", ""),
+        relay_model=_str("JARVIS_RELAY_MODEL", "claude-haiku-4.5"),
+        relay_max_tokens=_int("JARVIS_RELAY_MAX_TOKENS", 0),
+        relay_timeout_seconds=_float("JARVIS_RELAY_TIMEOUT_SECONDS", 60.0),
         gemini_api_key=_str("GEMINI_API_KEY", ""),
         gemini_model=_str("GEMINI_MODEL", "gemini-2.5-flash"),
         groq_api_key=_str("GROQ_API_KEY", ""),
@@ -205,12 +234,18 @@ def load_settings() -> Settings:
         brain_timeout_seconds=_float("BRAIN_TIMEOUT_SECONDS", 300.0),
         max_tool_iterations=_int("MAX_TOOL_ITERATIONS", 6),
         history_turns=_int("HISTORY_TURNS", 12),
-        whisper_model=_str("WHISPER_MODEL", "small.en"),
+        ultimate_power=_bool("JARVIS_ULTIMATE_POWER", False),
+        whisper_model=_str("WHISPER_MODEL", "tiny.en"),
         stt_device=_str("STT_DEVICE", "cuda"),
         stt_compute_type=_str("STT_COMPUTE_TYPE", "auto"),
         stt_profile=_str("STT_PROFILE", "fast"),
         stt_language=_str("STT_LANGUAGE", "en"),
         stt_vad_filter=_bool("STT_VAD_FILTER", True),
+        stt_vad_threshold=_float("STT_VAD_THRESHOLD", 0.2),
+        stt_initial_prompt=_str(
+            "STT_INITIAL_PROMPT",
+            "Conversational speech, technical commands, quiet voice, whispered queries.",
+        ),
         browser_channel=_str("BROWSER_CHANNEL", "msedge"),
         mail_address=_str("MAIL_ADDRESS", ""),
         mail_app_password=_str("MAIL_APP_PASSWORD", ""),
@@ -220,6 +255,7 @@ def load_settings() -> Settings:
         smtp_host=_str("SMTP_HOST", ""),
         smtp_port=_int("SMTP_PORT", 465),
         tts_engine=_str("TTS_ENGINE", "auto").lower(),
+        tts_edge_voice=_str("TTS_EDGE_VOICE", "en-GB-RyanNeural"),
         tts_allow_download=_bool("TTS_ALLOW_DOWNLOAD", False),
         tts_backend=_str("TTS_BACKEND", "turbo").lower(),
         tts_device=_str("TTS_DEVICE", "cpu"),
@@ -230,6 +266,7 @@ def load_settings() -> Settings:
         wake_threshold=_float("WAKE_THRESHOLD", 0.5),
         wake_inference_framework=_str("WAKE_INFERENCE_FRAMEWORK", "onnx"),
         confirm_timeout_seconds=_float("CONFIRM_TIMEOUT_SECONDS", 30.0),
+        question_timeout_seconds=_float("QUESTION_TIMEOUT_SECONDS", 45.0),
         policy_path=Path(_str("POLICY_PATH", str(config_dir / "policy.yaml"))),
         audit_enabled=_bool("AUDIT_ENABLED", True),
         mcp_config_path=Path(_str("MCP_CONFIG_PATH", str(config_dir / "mcp_servers.yaml"))),

@@ -52,6 +52,9 @@ DEFAULT_POLICY: dict[str, Any] = {
             "memory_remember",
             "memory_recall",
             "memory_list",
+            "learn_custom_command",
+            "list_custom_commands",
+            "delete_custom_command",
             "fs_list",
             "fs_read",
             "clipboard_read",
@@ -60,6 +63,7 @@ DEFAULT_POLICY: dict[str, Any] = {
             "calendar_list",
             "audit_tail",
             "browser_read",
+            "browser_get_elements",
         ],
         "confirm": [
             "fs_write",
@@ -73,8 +77,19 @@ DEFAULT_POLICY: dict[str, Any] = {
             "browser_open",
             "browser_click",
             "browser_type",
+            "browser_scroll",
+            "browser_press_key",
+            "browser_navigate",
+            "browser_eval_js",
             "browser_screenshot",
             "browser_close",
+            "desktop_hotkey",
+            "desktop_type_text",
+            "desktop_mouse_action",
+            "desktop_window_control",
+            "desktop_screenshot",
+            "ultimate_exec",
+            "ultimate_system_control",
         ],
         "deny": ["shell_run_admin", "registry_write", "disk_format"],
     },
@@ -298,6 +313,17 @@ class Policy:
             for key, value in (data.get("apps") or {}).items()
             if str(key).strip()
         }
+        # Ultimate Power / Master Full Permission Mode
+        # When enabled by the master, all tools are authorized without confirmation barriers
+        self.ultimate_power: bool = bool(data.get("ultimate_power", False) if data else False)
+
+    def grant_ultimate_permission(self, enabled: bool = True) -> None:
+        """Grant or revoke unrestricted autonomous permission mode."""
+        self.ultimate_power = enabled
+
+    @property
+    def ultimate_permission(self) -> bool:
+        return getattr(self, "ultimate_power", False)
 
     # -- construction -----------------------------------------------------
 
@@ -343,6 +369,28 @@ class Policy:
         """
         args = args or {}
         strings = _arg_strings(args)
+
+        # Master Ultimate Permission Gate: when ultimate_power is granted, confirmation barriers
+        # are lifted while destructive host corruption is safely gated
+        if getattr(self, "ultimate_power", False):
+            if executing:
+                for pattern in self.dangerous_patterns:
+                    if any(pattern.search(value) for value in strings):
+                        return Decision(
+                            tool=tool,
+                            tier="deny",
+                            allowed=False,
+                            needs_confirmation=False,
+                            reason=f"refused: arguments match a destructive pattern ({pattern.pattern})",
+                            pattern=pattern.pattern,
+                        )
+            return Decision(
+                tool=tool,
+                tier="auto",
+                allowed=True,
+                needs_confirmation=False,
+                reason="master_ultimate_permission_granted",
+            )
 
         # Credentials: allowed, but never silently. Checked for every tool, reads
         # included, because the risk here is disclosure rather than destruction.

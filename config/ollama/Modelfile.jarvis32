@@ -1,22 +1,68 @@
 # Jarvis brain: the llama3.2 variant of the tuned load-out.
 #
-# Same story as Modelfile.jarvis (the qwen3 variant): Ollama 0.34 loads these models
-# with a 65536-token context by default. For llama3.2:3b that is 10 GB resident with
-# ~79% of it on the CPU. An 8192 context keeps it mostly in VRAM, which is what a
-# spoken assistant actually needs -- a turn's prompt is under 4000 tokens.
+# Same story as before: an 8192 context keeps the model resident in VRAM, which
+# is what a spoken assistant needs (measured: 1-4 s per model call here, versus
+# 20-30 s for qwen3:4b at 65k context).
 #
-# Create it once; scripts\setup.ps1 does this for you:
-#
-#   ollama create jarvis-brain:3b -f config\ollama\Modelfile.jarvis32
-#
-# This is the DEFAULT brain as of the latency work: measured on this machine it
-# answers in 1-4 seconds per model call where qwen3:4b takes 20-30, because qwen3
-# reasons at length before speaking and llama3.2 does not. The qwen3 variant
-# (jarvis-brain:4b) remains the right choice when answer *quality* on hard
-# multi-step questions matters more than latency; set OLLAMA_MODEL=qwen3:4b in .env
-# to get it, and Jarvis will prefer jarvis-brain:4b automatically.
+# TEMPLATE is carried in this file deliberately. Ollama's stock llama3.2
+# template instructs the model to "respond with a JSON for a function call"
+# on EVERY final user turn when tools exist -- which made the model write
+# {"name": ...} as plain text on ordinary greetings and small talk. The
+# embedded template keeps the JSON tool-call format but restricts it to turns
+# that actually need a tool. Edit config/ollama/Template.jarvis3b and re-run
+# scripts/setup.ps1 (or ollama create) to change it.
 
 FROM llama3.2:3b
+
+TEMPLATE """<|start_header_id|>system<|end_header_id|>
+
+Cutting Knowledge Date: December 2023
+
+{{ if .System }}{{ .System }}
+{{- end }}
+{{- if .Tools }}When you receive a tool call response, use the output to format an answer to the orginal user question.
+
+You are a helpful assistant with tool calling capabilities.
+{{- end }}<|eot_id|>
+{{- range $i, $_ := .Messages }}
+{{- $last := eq (len (slice $.Messages $i)) 1 }}
+{{- if eq .Role "user" }}<|start_header_id|>user<|end_header_id|>
+{{- if and $.Tools $last }}
+
+Here are the functions available to you:
+{{ range $.Tools }}
+{{- . }}
+{{ end }}
+
+If, and only if, answering requires one of these functions, respond with a single
+JSON object in the format {"name": function name, "parameters": dictionary of
+argument name and its value}. Do not use variables. For everything else --
+greetings, small talk, arithmetic, opinions, or answers you already have -- reply
+with ordinary spoken prose. Never wrap prose in JSON.
+
+{{ .Content }}<|eot_id|>
+{{- else }}
+
+{{ .Content }}<|eot_id|>
+{{- end }}{{ if $last }}<|start_header_id|>assistant<|end_header_id|>
+
+{{ end }}
+{{- else if eq .Role "assistant" }}<|start_header_id|>assistant<|end_header_id|>
+{{- if .ToolCalls }}
+{{ range .ToolCalls }}
+{"name": "{{ .Function.Name }}", "parameters": {{ .Function.Arguments }}}{{ end }}
+{{- else }}
+
+{{ .Content }}
+{{- end }}{{ if not $last }}<|eot_id|>{{ end }}
+{{- else if eq .Role "tool" }}<|start_header_id|>ipython<|end_header_id|>
+
+{{ .Content }}<|eot_id|>{{ if $last }}<|start_header_id|>assistant<|end_header_id|>
+
+{{ end }}
+{{- end }}
+{{- end }}
+"""
 
 PARAMETER num_ctx 8192
 PARAMETER temperature 0.2

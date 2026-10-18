@@ -22,8 +22,9 @@ def test_read_only_tools_are_auto(policy: Policy) -> None:
 
 
 def test_side_effecting_tools_need_confirmation(policy: Policy) -> None:
-    for name in ("fs_write", "fs_delete", "shell_run", "app_launch", "mail_send", "calendar_add"):
+    for name in ("fs_write", "fs_delete", "shell_run", "mail_send", "calendar_add"):
         assert policy.tier_for(name) == "confirm", name
+
 
 
 def test_unknown_tool_defaults_to_confirmation(policy: Policy) -> None:

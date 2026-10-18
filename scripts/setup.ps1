@@ -115,6 +115,15 @@ try {
         Write-Step 'Installing the speech stack (whisper, Chatterbox, wake word)'
         & uv pip install --python $VenvPython -r requirements-voice.txt
         if ($LASTEXITCODE -ne 0) { throw "voice dependency install failed" }
+
+        Write-Step 'Fetching the wake-word weights ("Hey Jarvis")'
+        # The openwakeword wheel ships without its ONNX weights and only fetches
+        # them on first use, so the first "Hey Jarvis" would otherwise stall on a
+        # download. Doing it here keeps that first wake instant.
+        & $VenvPython -c "import openwakeword.utils as u; u.download_models(['hey_jarvis'])"
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn 'wake-word weights were not fetched; they will download on first use.'
+        }
     }
 
     if (-not (Test-Path (Join-Path $Root '.env'))) {

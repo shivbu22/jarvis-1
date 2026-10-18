@@ -27,7 +27,15 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from .registry import ToolContext, ToolOutput, ToolSpec, object_schema, param
+from .registry import (
+    ToolContext,
+    ToolOutput,
+    ToolSpec,
+    boolean_param,
+    integer_param,
+    object_schema,
+    param,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +156,7 @@ def close_browser_session(ctx: ToolContext) -> None:
 # --------------------------------------------------------------------------
 
 
-def browser_open(ctx: ToolContext, url: str) -> ToolOutput:
+def browser_open(ctx: ToolContext, url: str, headless: bool | None = None) -> ToolOutput:
     def action(session: BrowserSession) -> dict[str, Any]:
         page = session.ensure()
         page.goto(url, wait_until="domcontentloaded")
@@ -258,6 +266,132 @@ def browser_close(ctx: ToolContext) -> ToolOutput:
     return ToolOutput(text="Closed the browser.")
 
 
+def browser_scroll(ctx: ToolContext, direction: str = "down", amount: int = 500) -> ToolOutput:
+    amount = max(50, min(int(amount or 500), 5000))
+    d = (direction or "down").lower().strip()
+
+    def action(session: BrowserSession) -> dict[str, Any]:
+        page = session.ensure()
+        if d == "down":
+            page.evaluate(f"window.scrollBy(0, {amount})")
+        elif d == "up":
+            page.evaluate(f"window.scrollBy(0, -{amount})")
+        elif d == "top":
+            page.evaluate("window.scrollTo(0, 0)")
+        elif d == "bottom":
+            page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        else:
+            page.evaluate(f"window.scrollBy(0, {amount})")
+        return {"url": page.url, "direction": d, "amount": amount}
+
+    try:
+        res = _on_browser_thread(ctx, action)
+    except Exception as exc:
+        return ToolOutput(text=f"I could not scroll the page: {exc}", ok=False)
+    return ToolOutput(text=f"Scrolled {d} in browser.", data=res, ok=True)
+
+
+def browser_press_key(ctx: ToolContext, key: str) -> ToolOutput:
+    k = (key or "").strip()
+    if not k:
+        return ToolOutput(text="Key name required (e.g. 'Enter', 'Escape', 'Tab', 'PageDown').", ok=False)
+
+    def action(session: BrowserSession) -> dict[str, Any]:
+        page = session.ensure()
+        page.keyboard.press(k)
+        return {"url": page.url, "key": k}
+
+    try:
+        res = _on_browser_thread(ctx, action)
+    except Exception as exc:
+        return ToolOutput(text=f"I could not press key '{k}': {exc}", ok=False)
+    return ToolOutput(text=f"Pressed '{k}' in browser.", data=res, ok=True)
+
+
+def browser_navigate(ctx: ToolContext, action_name: str = "reload", url: str = "") -> ToolOutput:
+    act = (action_name or "reload").lower().strip()
+
+    def action(session: BrowserSession) -> dict[str, Any]:
+        page = session.ensure()
+        if act == "back":
+            page.go_back()
+        elif act == "forward":
+            page.go_forward()
+        elif act == "reload":
+            page.reload()
+        elif act == "goto" and url:
+            page.goto(url, wait_until="domcontentloaded")
+        else:
+            page.reload()
+        return {"url": page.url, "title": page.title(), "action": act}
+
+    try:
+        res = _on_browser_thread(ctx, action)
+    except Exception as exc:
+        return ToolOutput(text=f"Navigation failed ({act}): {exc}", ok=False)
+    return ToolOutput(text=f"Browser {act} completed: now at {res['url']}", data=res, ok=True)
+
+
+def browser_eval_js(ctx: ToolContext, script: str) -> ToolOutput:
+    s = (script or "").strip()
+    if not s:
+        return ToolOutput(text="Script cannot be empty.", ok=False)
+
+    def action(session: BrowserSession) -> Any:
+        page = session.ensure()
+        return page.evaluate(s)
+
+    try:
+        res = _on_browser_thread(ctx, action)
+    except Exception as exc:
+        return ToolOutput(text=f"JavaScript evaluation failed: {exc}", ok=False)
+    return ToolOutput(text=f"Evaluated JS result: {str(res)[:1000]}", data={"result": res}, ok=True)
+
+
+def browser_get_elements(ctx: ToolContext, selector: str = "a, button, input, textarea, select") -> ToolOutput:
+    sel = selector or "a, button, input, textarea, select"
+
+    def action(session: BrowserSession) -> list[dict[str, Any]]:
+        page = session.ensure()
+        return page.evaluate("""(query) => {
+            const els = Array.from(document.querySelectorAll(query));
+            const items = [];
+            for (let i = 0; i < els.length && items.length < 40; i++) {
+                const el = els[i];
+                const rect = el.getBoundingClientRect();
+                if (rect.width > 0 && rect.height > 0) {
+                    const text = (el.innerText || el.value || el.placeholder || el.getAttribute('aria-label') || '').trim();
+                    items.push({
+                        tag: el.tagName.toLowerCase(),
+                        text: text.slice(0, 60),
+                        id: el.id || '',
+                        href: el.getAttribute('href') || '',
+                        type: el.getAttribute('type') || ''
+                    });
+                }
+            }
+            return items;
+        }""", sel)
+
+    try:
+        elements = _on_browser_thread(ctx, action)
+    except Exception as exc:
+        return ToolOutput(text=f"Could not inspect elements: {exc}", ok=False)
+
+    lines = [f"Found {len(elements)} interactive elements matching '{sel}':"]
+    for idx, e in enumerate(elements[:25]):
+        info = f"[{idx+1}] <{e['tag']}>"
+        if e['id']:
+            info += f" id='{e['id']}'"
+        if e['text']:
+            info += f" '{e['text']}'"
+        if e['href']:
+            info += f" -> {e['href']}"
+        lines.append(info)
+
+    return ToolOutput(text="\n".join(lines), data={"elements": elements}, ok=True)
+
+
 # --------------------------------------------------------------------------
 # specs
 # --------------------------------------------------------------------------
@@ -269,7 +403,11 @@ def build_specs() -> list[ToolSpec]:
             name="browser_open",
             description="Open a URL in a real browser window on this machine. Needs permission.",
             parameters=object_schema(
-                {"url": param("url", "string", "Full URL, including https://.")}, ["url"]
+                {
+                    "url": param("url", "string", "Full URL, including https://."),
+                    "headless": boolean_param("Run in headless mode (default false).", default=False),
+                },
+                ["url"],
             ),
             handler=browser_open,
             executing=True,
@@ -326,6 +464,64 @@ def build_specs() -> list[ToolSpec]:
             ),
             handler=browser_type,
             executing=True,
+            category="browser",
+        ),
+        ToolSpec(
+            name="browser_scroll",
+            description="Scroll the active browser page up, down, top, or bottom.",
+            parameters=object_schema(
+                {
+                    "direction": param("direction", "string", "Scroll direction: 'down', 'up', 'top', 'bottom'.", enum=["down", "up", "top", "bottom"], default="down"),
+                    "amount": integer_param("Pixels to scroll for up/down (default 500)", default=500),
+                },
+                [],
+            ),
+            handler=browser_scroll,
+            executing=True,
+            category="browser",
+        ),
+        ToolSpec(
+            name="browser_press_key",
+            description="Send a keyboard key press to the active browser page (e.g. 'Enter', 'Escape', 'Tab', 'PageDown').",
+            parameters=object_schema(
+                {"key": param("key", "string", "Key name to press, e.g. 'Enter', 'Escape', 'Tab', 'PageDown', 'ArrowDown'.")}, ["key"]
+            ),
+            handler=browser_press_key,
+            executing=True,
+            category="browser",
+        ),
+        ToolSpec(
+            name="browser_navigate",
+            description="Navigate browser history or reload: 'back', 'forward', 'reload', 'goto'.",
+            parameters=object_schema(
+                {
+                    "action_name": param("action_name", "string", "Navigation action: 'reload', 'back', 'forward', 'goto'.", enum=["reload", "back", "forward", "goto"], default="reload"),
+                    "url": param("url", "string", "Destination URL if action is 'goto'.", default=""),
+                },
+                [],
+            ),
+            handler=browser_navigate,
+            executing=True,
+            category="browser",
+        ),
+        ToolSpec(
+            name="browser_eval_js",
+            description="Evaluate custom JavaScript code within the active browser tab.",
+            parameters=object_schema(
+                {"script": param("script", "string", "JavaScript code to execute in page context.")}, ["script"]
+            ),
+            handler=browser_eval_js,
+            executing=True,
+            category="browser",
+        ),
+        ToolSpec(
+            name="browser_get_elements",
+            description="Inspect interactive elements (buttons, links, inputs) on current page with their tags and IDs.",
+            parameters=object_schema(
+                {"selector": param("selector", "string", "CSS query selector (defaults to interactive elements).", default="a, button, input, textarea, select")}, []
+            ),
+            handler=browser_get_elements,
+            executing=False,
             category="browser",
         ),
         ToolSpec(

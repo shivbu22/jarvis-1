@@ -21,6 +21,7 @@ import inspect
 import io
 import json
 import logging
+import re
 import subprocess
 import tempfile
 import threading
@@ -68,6 +69,91 @@ class Speech:
             "sample_rate": self.sample_rate,
             "bytes": len(self.data),
         }
+
+
+#: Smallest chunk worth its own synthesis call.
+#:
+#: Measured on this machine (16-core CPU, chatterbox turbo): the clone costs about
+#: 6 seconds of *fixed* work per call plus roughly 1.5 seconds per second of audio.
+#: Four clauses in four calls took 23.9 s; the same words in one call took 12.7 s.
+#: So a call per clause would nearly double how long a reply takes to say. This
+#: bound is what stops "start speaking sooner" from meaning "speak for twice as
+#: long overall" -- and three parallel workers measured 1.00x, so extra calls
+#: cannot be bought back with concurrency either.
+MIN_SPEECH_CHARS = 96
+
+#: The first chunk is allowed to be much shorter, and that is the whole point of
+#: streaming: the cost of one extra call (~6 s) buys an earlier first word, and
+#: the first word is what the master actually experiences as latency. Later
+#: chunks use the larger bound so a long answer does not pay that cost per clause.
+FIRST_SPEECH_CHARS = 24
+
+#: Hard limit, so a reply with no punctuation in it still starts being spoken.
+MAX_SPEECH_CHARS = 240
+
+#: A place worth pausing at: a sentence end, or a comma/semicolon/colon, all of
+#: which are real pauses in speech rather than arbitrary splits.
+_BOUNDARY = re.compile(r"(?<=[.!?;:])\s+|(?<=,)\s+")
+
+
+class SpeechChunker:
+    """Turns a stream of answer tokens into pieces worth synthesising.
+
+    Both costs are real and they pull in opposite directions: a long answer must
+    *start* speaking quickly, but every synthesis call carries a large fixed cost.
+    The policy resolves them by waiting for a boundary **and** a minimum length,
+    which keeps the call count near the sentence count while letting the first
+    sentence begin while the rest is still being written.
+    """
+
+    def __init__(
+        self,
+        minimum: int = MIN_SPEECH_CHARS,
+        maximum: int = MAX_SPEECH_CHARS,
+        first_minimum: int = FIRST_SPEECH_CHARS,
+    ) -> None:
+        self.minimum = max(1, int(minimum))
+        self.maximum = max(self.minimum, int(maximum))
+        self.first_minimum = max(1, min(int(first_minimum), self.minimum))
+        self._buffer = ""
+        self._emitted = 0
+
+    def push(self, piece: str) -> list[str]:
+        """Add streamed text; return any chunks that are ready to speak."""
+        self._buffer += piece or ""
+        ready: list[str] = []
+        while True:
+            cut = self._cut_point()
+            if cut <= 0:
+                break
+            chunk = self._buffer[:cut].strip()
+            self._buffer = self._buffer[cut:].lstrip()
+            if chunk:
+                ready.append(chunk)
+                self._emitted += 1
+        return ready
+
+    def flush(self) -> list[str]:
+        """Whatever is left, for the end of the reply."""
+        chunk = self._buffer.strip()
+        self._buffer = ""
+        return [chunk] if chunk else []
+
+    @property
+    def pending(self) -> str:
+        return self._buffer
+
+    def _cut_point(self) -> int:
+        """Index to cut at, or 0 when the buffer should keep accumulating."""
+        threshold = self.first_minimum if self._emitted == 0 else self.minimum
+        if len(self._buffer) >= self.maximum:
+            # No usable punctuation: cut at the last space so no word is split.
+            space = self._buffer.rfind(" ", 0, self.maximum)
+            return space if space > 0 else self.maximum
+        for match in _BOUNDARY.finditer(self._buffer):
+            if match.end() >= threshold:
+                return match.end()
+        return 0
 
 
 class TTSEngine(ABC):
@@ -270,6 +356,88 @@ def _chatterbox_target(backend: str) -> tuple[str, str]:
 
 
 # --------------------------------------------------------------------------
+# Microsoft Edge Neural TTS: Studio-Quality Human British Voice
+# --------------------------------------------------------------------------
+
+
+class EdgeTTSEngine(TTSEngine):
+    """Ultra-low latency, studio-quality neural voice synthesis.
+
+    Provides realistic human intonation and authentic British inflection (e.g.
+    `en-GB-RyanNeural`) with sub-second response times and zero GPU load.
+    """
+
+    name = "edge"
+
+    def __init__(self, settings: Settings, voice: str = "en-GB-RyanNeural") -> None:
+        super().__init__(settings)
+        self._voice = getattr(settings, "tts_edge_voice", None) or voice
+
+    def available(self) -> bool:
+        return importlib.util.find_spec("edge_tts") is not None
+
+    def _synthesize(self, text: str) -> Speech:
+        if not self.available():
+            raise TTSError("edge-tts is not installed in the environment")
+
+        import asyncio
+
+        import edge_tts
+        import soundfile as sf
+        from .hinglish import resolve_tts_voice
+
+        hinglish_voice = getattr(self.settings, "tts_voice_hinglish", None) or "en-IN-PrabhatNeural"
+        selected_voice = resolve_tts_voice(text, default_voice=self._voice, hinglish_voice=hinglish_voice)
+
+        async def _generate() -> bytes:
+            comm = edge_tts.Communicate(text, selected_voice)
+            chunks = []
+            async for chunk in comm.stream():
+                if chunk.get("type") == "audio" and "data" in chunk:
+                    chunks.append(chunk["data"])
+            return b"".join(chunks)
+
+        try:
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                import concurrent.futures
+
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+                    raw_mp3 = executor.submit(asyncio.run, _generate()).result(timeout=25)
+            else:
+                raw_mp3 = asyncio.run(_generate())
+        except Exception as exc:
+            raise TTSError(f"Edge TTS synthesis failed: {exc}") from exc
+
+        if not raw_mp3:
+            raise TTSError("Edge TTS generated empty audio")
+
+        try:
+            data, sample_rate = sf.read(io.BytesIO(raw_mp3), dtype="float32")
+            mono = _to_numpy(data)
+            wav_bytes = _wav_bytes(mono, sample_rate)
+            return Speech(
+                data=wav_bytes,
+                engine=self.name,
+                sample_rate=int(sample_rate),
+                voice=selected_voice,
+            )
+        except Exception as exc:
+            raise TTSError(f"failed to decode Edge TTS audio stream: {exc}") from exc
+
+    def describe(self) -> dict[str, Any]:
+        return {
+            "engine": self.name,
+            "available": self.available(),
+            "voice": self._voice,
+        }
+
+
+# --------------------------------------------------------------------------
 # Windows SAPI: the fallback
 # --------------------------------------------------------------------------
 
@@ -383,15 +551,29 @@ def _wav_info(data: bytes) -> tuple[int, str]:
 
 
 def build_tts(settings: Settings) -> TTSEngine:
-    """Pick an engine. ``auto`` prefers the clone and degrades to the OS voice."""
+    """Pick an engine.
+
+    - ``edge``: Microsoft Neural Studio British voice (fast, natural human inflection).
+    - ``chatterbox``: Voice clone.
+    - ``sapi``: Offline Windows fallback voice.
+    - ``auto``: Prefers Edge Neural voice for human-like British JARVIS dialogue
+      with sub-second latency; falls back to Chatterbox/SAPI.
+    """
     requested = (settings.tts_engine or "auto").lower()
+    edge = EdgeTTSEngine(settings)
     chatterbox = ChatterboxEngine(settings)
     sapi = SapiEngine(settings)
 
+    if requested == "edge":
+        return edge
     if requested == "chatterbox":
         return chatterbox
     if requested == "sapi":
         return sapi
+
+    if edge.available():
+        logger.info("using the neural British Jarvis voice (edge-tts: %s)", edge._voice)
+        return edge
     if chatterbox.available():
         logger.info("using the cloned Jarvis voice (chatterbox)")
         return chatterbox
@@ -404,7 +586,7 @@ def build_tts(settings: Settings) -> TTSEngine:
         else:
             logger.info("chatterbox not installed; using the Windows voice")
         return sapi
-    return chatterbox  # reports its own unavailability clearly
+    return edge
 
 
 def build_and_save_conds(

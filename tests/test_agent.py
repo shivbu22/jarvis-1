@@ -110,7 +110,7 @@ async def test_declined_tool_tells_the_model_not_to_retry(make_agent, harness) -
 
     tool_messages = [m for m in brain.calls[1] if m.get("role") == "tool"]
     assert tool_messages
-    assert "did not approve" in tool_messages[0]["content"]
+    assert "NOT PERFORMED" in tool_messages[0]["content"]
 
 
 async def test_no_confirmation_path_means_no_execution(make_agent, harness, tmp_path) -> None:
@@ -296,10 +296,16 @@ async def test_retry_still_offers_no_tools_after_a_tool_ran(make_agent) -> None:
 
 
 async def test_an_understandable_failure_when_the_retry_is_also_empty(make_agent) -> None:
-    """Never a bare "Done." -- say plainly that it could not be put into words."""
+    """Never a bare "Done." -- say plainly what did not happen.
+
+    No tool ran here, so there is no completed action to report and the wording is
+    the "could not work it out" one. A turn whose tools *succeeded* but whose
+    model then failed to phrase it says "That is done." instead, which is the
+    honest reading of that situation: the action did happen.
+    """
     agent, _ = make_agent([BrainReply(text=""), BrainReply(text="")])
 
     result = await agent.run_turn("confirm you are working")
 
-    assert result.reply == "I could not put that into words."
+    assert result.reply == "I could not work that out."
     assert result.reply != "Done."

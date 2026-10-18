@@ -58,7 +58,8 @@ function Test-Endpoint([string]$Url, [int]$Seconds = 2) {
     try {
         $response = Invoke-WebRequest -Uri $Url -TimeoutSec $Seconds -UseBasicParsing
         return $response.StatusCode -eq 200
-    } catch {
+    }
+    catch {
         return $false
     }
 }
@@ -82,14 +83,16 @@ try {
             Write-Host '==> Starting ollama serve' -ForegroundColor Cyan
             $ollamaProcess = Start-Process -FilePath 'ollama' -ArgumentList 'serve' -PassThru -WindowStyle Hidden
             Start-Sleep -Seconds 2
-        } else {
+        }
+        else {
             Write-Host '!! Ollama is not running.' -ForegroundColor Yellow
             Write-Host '   Without GEMINI_API_KEY in .env there is no brain, so Jarvis cannot answer.'
             Write-Host '   Either run:  ollama serve      (and: ollama pull qwen3:4b)'
             Write-Host '   or rerun this with:  .\scripts\run.ps1 -StartOllama'
             Write-Host ''
         }
-    } else {
+    }
+    else {
         Write-Host '==> Ollama is running' -ForegroundColor Cyan
     }
 
@@ -111,7 +114,8 @@ try {
         Write-Host "    ears:   $($health.stt.model) on $($health.stt.device)" -ForegroundColor DarkGray
         Write-Host "    voice:  $($health.tts.engine)" -ForegroundColor DarkGray
         foreach ($note in $health.notes) { Write-Host "    note:   $note" -ForegroundColor Yellow }
-    } catch {
+    }
+    catch {
         Write-Host '    (could not read /health, continuing anyway)' -ForegroundColor Yellow
     }
 

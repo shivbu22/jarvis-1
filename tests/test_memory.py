@@ -115,3 +115,33 @@ def test_stats_report_what_is_stored(store: MemoryStore) -> None:
     assert stats["memories"] == 1
     assert stats["turns"] == 1
     assert isinstance(stats["fts"], bool)
+
+
+def test_a_paraphrase_of_an_existing_note_is_refused(store: MemoryStore) -> None:
+    """The same fact in different words must not become a second note.
+
+    Observed live: the model re-saved the workshop time in slightly different
+    words on separate turns, and recall then returned both copies.
+    """
+    first = store.add("my workshop is on Friday at 3pm")
+    duplicate = store.add("the workshop is on Friday at 3pm")
+    assert first > 0
+    assert duplicate < 0, "a paraphrase was stored as a new note"
+    assert store.count() == 1
+
+
+def test_a_number_change_is_a_new_fact_not_a_duplicate(store: MemoryStore) -> None:
+    """\"2 litres\" and \"3 litres\" are different orders, not paraphrases."""
+    first = store.add("buy 2 litres of milk")
+    second = store.add("buy 3 litres of milk")
+    assert first > 0 and second > 0
+    assert store.count() == 2
+
+
+def test_a_repeated_duplicate_bumps_the_seen_count(store: MemoryStore) -> None:
+    store.add("the garage door code is 1234")
+    store.add("garage door code 1234")
+    store.add("it's 1234 for the garage door")
+    rows = store.search("garage door")
+    assert len(rows) == 1
+    assert rows[0]["seen_count"] == 2

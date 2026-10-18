@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-
-import { ConfirmBar, Conversation, Orb, StatusBar, ToolTrace } from "./components/Panels";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { MinimalHeader } from "./components/MinimalHeader";
+import { MinimalOrb, type OrbPhase } from "./components/MinimalOrb";
+import { ConversationFeed, type MessageItem } from "./components/ConversationFeed";
+import { MinimalControls } from "./components/MinimalControls";
 import {
-  playWavBase64,
+  isSpeaking,
+  onSpeechEnd,
+  playActivationChime,
+  queueWavBase64,
   startRecording,
   stopPlayback,
+  unlockAudioPlayback,
   WakeStream,
   type RecorderHandle,
 } from "./lib/audio";
@@ -15,374 +21,399 @@ import {
   type ConfirmRequest,
   type ConnectionState,
   type Health,
-  type ToolAttempt,
+  type QuestionRequest,
+  type TurnResult,
 } from "./lib/gateway";
 
-type Phase = "idle" | "listening" | "thinking" | "speaking";
-
-interface Message {
-  id: number;
-  role: "user" | "jarvis" | "system";
-  text: string;
-  /** True while reply_delta frames are still appending to this message. */
-  streaming?: boolean;
+function nextMessageId(): number {
+  const w = window as unknown as { __jarvisMessageSeq?: number };
+  w.__jarvisMessageSeq = (w.__jarvisMessageSeq ?? 0) + 1;
+  return w.__jarvisMessageSeq;
 }
-
-let messageSeq = 0;
 
 export default function App() {
   const [health, setHealth] = useState<Health | null>(null);
   const [connection, setConnection] = useState<ConnectionState>("connecting");
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [tools, setTools] = useState<ToolAttempt[]>([]);
-  const [pending, setPending] = useState<ConfirmRequest | null>(null);
-  const [notice, setNotice] = useState<string>("");
-  const [wakeOn, setWakeOn] = useState(false);
-  const [draft, setDraft] = useState("");
+  const [phase, setPhase] = useState<OrbPhase>("idle");
+  const [messages, setMessages] = useState<MessageItem[]>([]);
+  const [draft, setDraft] = useState<string>("");
+  const [pendingConfirm, setPendingConfirm] = useState<ConfirmRequest | null>(null);
+  const [pendingQuestion, setPendingQuestion] = useState<QuestionRequest | null>(null);
+  const [wakeEnabled, setWakeEnabled] = useState<boolean>(false);
+  const [isMuted, setIsMuted] = useState<boolean>(false);
 
+  // References
   const socketRef = useRef<TurnSocket | null>(null);
   const recorderRef = useRef<RecorderHandle | null>(null);
-  const wakeRef = useRef<WakeStream | null>(null);
-  const wakeSocketRef = useRef<WebSocket | null>(null);
-  const autoRecordRef = useRef(false);
+  const wakeStreamRef = useRef<WakeStream | null>(null);
+  const wakeWsRef = useRef<WebSocket | null>(null);
+  const currentReplyIdRef = useRef<number | null>(null);
 
-  const say = useCallback((role: Message["role"], text: string) => {
-    if (!text.trim()) return;
-    setMessages((current) => [...current, { id: (messageSeq += 1), role, text }]);
-  }, []);
-
-  /* ---------------------------------------------------------------- socket */
-
-  useEffect(() => {
-    const socket = new TurnSocket({
-      onState: setConnection,
-      onTranscript: (text) => {
-        // A new turn begins: seal any message still flagged streaming so the
-        // first delta of this turn cannot append to a stale one.
-        setMessages((current) =>
-          current.map((m) => (m.streaming ? { ...m, streaming: false } : m)),
-        );
-        // Typed turns are added locally by submitText and echoed back over the
-        // bus; only add when it is not already the last message.
-        setMessages((current) => {
-          const last = current[current.length - 1];
-          if (last && last.role === "user" && last.text === text) return current;
-          return [...current, { id: (messageSeq += 1), role: "user", text }];
-        });
-        setPhase("thinking");
-      },
-      onThinking: () => setPhase("thinking"),
-      onReplyDelta: (piece) => {
-        setPhase("speaking");
-        setMessages((current) => {
-          const last = current[current.length - 1];
-          if (last && last.role === "jarvis" && last.streaming) {
-            return [
-              ...current.slice(0, -1),
-              { ...last, text: last.text + piece },
-            ];
-          }
-          return [...current, { id: (messageSeq += 1), role: "jarvis", text: piece, streaming: true }];
-        });
-      },
-      onToolStart: (name, args) =>
-        setTools((current) => [
-          ...current,
-          {
-            name,
-            args,
-            tier: "confirm",
-            decision: "running",
-            ok: true,
-            duration_ms: 0,
-            summary: "",
-          },
-        ]),
-      onToolResult: () => undefined,
-      onConfirmRequest: (request) => {
-        setPending(request);
-        setPhase("idle");
-      },
-      onConfirmResult: () => setPending(null),
-      onTurn: (result) => {
-        // Seal the streaming message (drop its flag) and append the final reply
-        // only if streaming never delivered it.
-        setMessages((current) => {
-          const last = current[current.length - 1];
-          const sealed =
-            last && last.role === "jarvis" && last.streaming
-              ? [...current.slice(0, -1), { ...last, streaming: false }]
-              : current;
-          if (result.reply) {
-            const sealedLast = sealed[sealed.length - 1];
-            const alreadyShown =
-              sealedLast && sealedLast.role === "jarvis" && sealedLast.text === result.reply;
-            if (!alreadyShown) {
-              return [...sealed, { id: (messageSeq += 1), role: "jarvis", text: result.reply }];
-            }
-          }
-          return sealed;
-        });
-        if (result.error && result.error !== "empty_transcript") {
-          setNotice(result.error);
-        }
-        setTools(result.tools ?? []);
-        setPending(null);
-        if (result.audio_b64) {
-          setPhase("speaking");
-          void playWavBase64(result.audio_b64).finally(() => setPhase("idle"));
-        } else {
-          setPhase("idle");
-        }
-      },
-      onError: (message) => {
-        setNotice(message);
-        setPhase("idle");
-      },
-    });
-    socketRef.current = socket;
-    socket.connect();
-    return () => socket.close();
-  }, [say]);
-
-  /* ---------------------------------------------------------------- health */
-
+  // Poll gateway health
   const refreshHealth = useCallback(async () => {
     try {
-      const next = await fetchHealth();
-      setHealth(next);
-      if (next.confirmations_pending?.length) {
-        setPending(next.confirmations_pending[0]);
-      }
+      const h = await fetchHealth();
+      setHealth(h);
     } catch {
-      setHealth(null);
+      // Gateway might be reloading
     }
   }, []);
 
   useEffect(() => {
     void refreshHealth();
-    const timer = window.setInterval(() => void refreshHealth(), 15000);
-    return () => window.clearInterval(timer);
+    const interval = setInterval(refreshHealth, 5000);
+    return () => clearInterval(interval);
   }, [refreshHealth]);
 
-  /* ------------------------------------------------------------- recording */
-
-  const beginRecording = useCallback(async () => {
-    if (recorderRef.current) return;
-    stopPlayback(); // talking over a reply stops it
-    try {
-      recorderRef.current = await startRecording();
-      setPhase("listening");
-      setNotice("");
-    } catch (error) {
-      setNotice(`Microphone unavailable: ${(error as Error).message}`);
-    }
+  // Voice playback monitoring
+  useEffect(() => {
+    onSpeechEnd(() => {
+      setPhase((prev) => (prev === "speaking" ? "idle" : prev));
+    });
   }, []);
 
-  const finishRecording = useCallback(async () => {
-    const recorder = recorderRef.current;
-    if (!recorder) return;
+  // Stop recording and send audio to Gateway
+  const stopMic = useCallback(async () => {
+    if (!recorderRef.current) return;
+    const handle = recorderRef.current;
     recorderRef.current = null;
+    setPhase("thinking");
+
     try {
-      const blob = await recorder.stop();
-      if (blob.size < 1500) {
+      const blob = await handle.stop();
+      if (blob && blob.size > 0 && socketRef.current) {
+        socketRef.current.sendAudio(blob);
+      } else {
         setPhase("idle");
-        return;
       }
-      setPhase("thinking");
-      socketRef.current?.sendAudio(blob);
-    } catch (error) {
-      setNotice(`Recording failed: ${(error as Error).message}`);
+    } catch (err) {
+      console.error("Audio recording stop failed:", err);
       setPhase("idle");
     }
   }, []);
 
-  const cancelRecording = useCallback(() => {
-    recorderRef.current?.cancel();
-    recorderRef.current = null;
-    setPhase("idle");
-  }, []);
+  // Start recording
+  const startMic = useCallback(async () => {
+    await unlockAudioPlayback();
+    stopPlayback();
 
-  /* ------------------------------------------------------------- wake word */
-
-  const stopWake = useCallback(() => {
-    wakeRef.current?.stop();
-    wakeRef.current = null;
-    wakeSocketRef.current?.close();
-    wakeSocketRef.current = null;
-    setWakeOn(false);
-  }, []);
-
-  const startWake = useCallback(async () => {
-    if (!health?.wake.available) {
-      setNotice(
-        health?.wake.error ??
-          "Wake word needs openwakeword. Install the voice extra, then restart the gateway.",
-      );
+    if (recorderRef.current) {
+      await stopMic();
       return;
     }
-    const wakeSocket = new WebSocket(`${GATEWAY_URL.replace(/^http/, "ws")}/ws/wake`);
-    wakeSocket.binaryType = "arraybuffer";
-    wakeSocketRef.current = wakeSocket;
 
-    wakeSocket.onmessage = (event) => {
-      let payload: Record<string, unknown>;
-      try {
-        payload = JSON.parse(String(event.data)) as Record<string, unknown>;
-      } catch {
-        return;
+    try {
+      setPhase("listening");
+      const handle = await startRecording();
+      recorderRef.current = handle;
+    } catch (err) {
+      console.error("Microphone access failed:", err);
+      setPhase("idle");
+    }
+  }, [stopMic]);
+
+  // Initialize WebSocket turn connection
+  useEffect(() => {
+    const socket = new TurnSocket({
+      onState: (state) => {
+        setConnection(state);
+      },
+      onTranscript: (text) => {
+        setPhase("thinking");
+        if (text.trim()) {
+          setMessages((prev) => [
+            ...prev,
+            { id: nextMessageId(), role: "user", text: text.trim() },
+          ]);
+        }
+      },
+      onThinking: () => {
+        setPhase("thinking");
+      },
+      onReplyDelta: (chunk) => {
+        setPhase("thinking");
+        setMessages((prev) => {
+          if (currentReplyIdRef.current === null) {
+            const newId = nextMessageId();
+            currentReplyIdRef.current = newId;
+            return [
+              ...prev,
+              { id: newId, role: "jarvis", text: chunk, streaming: true },
+            ];
+          }
+          return prev.map((m) =>
+            m.id === currentReplyIdRef.current
+              ? { ...m, text: m.text + chunk }
+              : m
+          );
+        });
+      },
+      onReplyRetract: () => {
+        if (currentReplyIdRef.current !== null) {
+          setMessages((prev) =>
+            prev.filter((m) => m.id !== currentReplyIdRef.current)
+          );
+          currentReplyIdRef.current = null;
+        }
+      },
+      onToolStart: () => {
+        setPhase("thinking");
+      },
+      onToolResult: () => {
+        setPhase("thinking");
+      },
+      onAudio: (base64) => {
+        if (!isMuted) {
+          setPhase("speaking");
+          queueWavBase64(base64);
+        }
+      },
+      onConfirmRequest: (req) => {
+        setPendingConfirm(req);
+      },
+      onConfirmResult: () => {
+        setPendingConfirm(null);
+      },
+      onQuestion: (q) => {
+        setPendingQuestion(q);
+      },
+      onQuestionResult: () => {
+        setPendingQuestion(null);
+      },
+      onTurn: (res: TurnResult) => {
+        currentReplyIdRef.current = null;
+        setPendingConfirm(null);
+        setPendingQuestion(null);
+
+        if (res.reply) {
+          setMessages((prev) => {
+            const existingIdx = prev.findIndex(
+              (m) => m.role === "jarvis" && m.streaming
+            );
+            if (existingIdx >= 0) {
+              const updated = [...prev];
+              updated[existingIdx] = {
+                ...updated[existingIdx],
+                text: res.reply,
+                streaming: false,
+                tools: res.tools,
+              };
+              return updated;
+            }
+            return [
+              ...prev,
+              {
+                id: nextMessageId(),
+                role: "jarvis",
+                text: res.reply,
+                tools: res.tools,
+              },
+            ];
+          });
+        }
+
+        if (res.audio_b64 && !isMuted) {
+          setPhase("speaking");
+          queueWavBase64(res.audio_b64);
+        } else if (!isSpeaking()) {
+          setPhase("idle");
+        }
+      },
+      onError: (err) => {
+        setPhase("idle");
+        setMessages((prev) => [
+          ...prev,
+          { id: nextMessageId(), role: "system", text: `Error: ${err}` },
+        ]);
+      },
+    });
+
+    socket.connect();
+    socketRef.current = socket;
+
+    return () => {
+      // Keep socket persistent
+    };
+  }, [isMuted]);
+
+  // Wake word toggle listener
+  useEffect(() => {
+    if (wakeEnabled) {
+      const wsUrl = GATEWAY_URL.replace(/^http/, "ws") + "/ws/wake";
+      const wakeWs = new WebSocket(wsUrl);
+      wakeWs.binaryType = "arraybuffer";
+      wakeWsRef.current = wakeWs;
+
+      wakeWs.onmessage = (event) => {
+        try {
+          const data = JSON.parse(String(event.data));
+          if (data.type === "detected" || data.detected) {
+            playActivationChime();
+            void startMic();
+          }
+        } catch {
+          // ignore
+        }
+      };
+
+      const stream = new WakeStream({
+        onFrame: (pcm16) => {
+          if (wakeWs.readyState === WebSocket.OPEN) {
+            wakeWs.send(pcm16);
+          }
+        },
+        onSilence: () => {},
+        onClapDetected: () => {
+          playActivationChime();
+          void startMic();
+        },
+      });
+
+      stream.start().catch((err) => {
+        console.error("Wake word failed to initialize:", err);
+        setWakeEnabled(false);
+      });
+      wakeStreamRef.current = stream;
+    } else {
+      if (wakeStreamRef.current) {
+        wakeStreamRef.current.stop();
+        wakeStreamRef.current = null;
       }
-      if (payload.type === "wake_unavailable") {
-        setNotice(String(payload.message ?? "wake word unavailable"));
-        stopWake();
-        return;
+      if (wakeWsRef.current) {
+        wakeWsRef.current.close();
+        wakeWsRef.current = null;
       }
-      if (payload.type === "wake_detected") {
-        say("system", `Heard "Hey Jarvis" (${payload.score}).`);
-        // A wake word starts a clip automatically; the silence detector ends it.
-        autoRecordRef.current = true;
-        void beginRecording();
+    }
+  }, [wakeEnabled, startMic]);
+
+  // Spacebar toggle to talk (when not typing in an input element)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target?.tagName === "INPUT" ||
+        target?.tagName === "TEXTAREA" ||
+        target?.isContentEditable;
+      if (e.code === "Space" && !isInput && !e.repeat) {
+        e.preventDefault();
+        if (phase === "listening") {
+          void stopMic();
+        } else {
+          void startMic();
+        }
       }
     };
 
-    try {
-      const stream = new WakeStream({
-        onFrame: (frame) => {
-          if (wakeSocket.readyState === WebSocket.OPEN) wakeSocket.send(frame);
-        },
-        onSilence: () => undefined,
-        onSpeechEnd: () => {
-          if (autoRecordRef.current && recorderRef.current) {
-            autoRecordRef.current = false;
-            void finishRecording();
-          }
-        },
-      });
-      await stream.start();
-      wakeRef.current = stream;
-      setWakeOn(true);
-      setNotice('Listening for "Hey Jarvis".');
-    } catch (error) {
-      setNotice(`Wake word needs microphone access: ${(error as Error).message}`);
-      stopWake();
-    }
-  }, [beginRecording, finishRecording, health, say, stopWake]);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [phase, startMic, stopMic]);
 
-  useEffect(() => () => stopWake(), [stopWake]);
+  // Send text turn
+  const handleSendText = useCallback(
+    (textToSend?: string) => {
+      const text = (textToSend ?? draft).trim();
+      if (!text || !socketRef.current) return;
 
-  /* ------------------------------------------------------------------ text */
-
-  const submitText = useCallback(
-    (event: React.FormEvent) => {
-      event.preventDefault();
-      const text = draft.trim();
-      if (!text) return;
-      setDraft("");
-      say("user", text);
+      void unlockAudioPlayback();
+      stopPlayback();
       setPhase("thinking");
-      socketRef.current?.speak(text);
+
+      setMessages((prev) => [
+        ...prev,
+        { id: nextMessageId(), role: "user", text },
+      ]);
+
+      socketRef.current.speak(text);
+      setDraft("");
     },
-    [draft, say],
+    [draft]
   );
 
-  const answer = useCallback((approved: boolean) => {
-    if (!pending) return;
-    socketRef.current?.answer(pending.id, approved);
-    say("system", approved ? "Approved." : "Refused.");
-    setPending(null);
-    setPhase("thinking");
-  }, [pending, say]);
+  // Confirm / Question responses
+  const handleAnswerConfirm = useCallback((id: string, approved: boolean) => {
+    if (socketRef.current) {
+      socketRef.current.answer(id, approved);
+      setPendingConfirm(null);
+    }
+  }, []);
 
-  /* ------------------------------------------------------------------ view */
+  const handleAnswerQuestion = useCallback((id: string, answer: string) => {
+    if (socketRef.current) {
+      socketRef.current.answerQuestion(id, answer);
+      setPendingQuestion(null);
+    }
+  }, []);
 
-  const sttReady = health?.stt.available ?? false;
-  const hint = useMemo(() => {
-    if (connection !== "open") return "Connecting to the gateway on port 8000...";
-    if (!sttReady) return "Speech recognition is not installed, so type instead.";
-    if (wakeOn) return 'Listening for "Hey Jarvis", or hold the button.';
-    return "Hold the button and speak.";
-  }, [connection, sttReady, wakeOn]);
+  // Clear conversation history
+  const handleClearHistory = useCallback(() => {
+    setMessages([]);
+    stopPlayback();
+    setPhase("idle");
+  }, []);
 
   return (
-    <div className="shell">
-      <header className="masthead">
-        <h1>
-          JARVIS <span className="version">v{health?.version ?? "..."}</span>
-        </h1>
-        <StatusBar health={health} connection={connection} />
-      </header>
+    <div className="jarvis-app-container">
+      {/* Sleek Top Header */}
+      <MinimalHeader
+        connection={connection}
+        health={health}
+        wakeEnabled={wakeEnabled}
+        onToggleWake={() => setWakeEnabled((prev) => !prev)}
+        isMuted={isMuted}
+        onToggleMute={() => {
+          if (!isMuted) stopPlayback();
+          setIsMuted((prev) => !prev);
+        }}
+        onClearHistory={handleClearHistory}
+      />
 
-      <main className="stage">
-        <Orb phase={phase} />
-        <p className="hint">{notice || hint}</p>
-
-        <div className="controls">
-          <button
-            type="button"
-            className={`talk ${phase === "listening" ? "talk--active" : ""}`}
-            disabled={connection !== "open" || !sttReady}
-            onPointerDown={(event) => {
-              event.preventDefault();
-              void beginRecording();
+      {/* Main Experience Body */}
+      <main className="jarvis-main-body">
+        {/* Central Responsive Glowing Orb */}
+        <section className="orb-centerpiece-section">
+          <MinimalOrb
+            phase={phase}
+            onClick={() => {
+              if (phase === "listening") {
+                void stopMic();
+              } else {
+                void startMic();
+              }
             }}
-            onPointerUp={() => void finishRecording()}
-            onPointerLeave={() => void finishRecording()}
-            onKeyDown={(event) => event.key === " " && void beginRecording()}
-            onKeyUp={(event) => event.key === " " && void finishRecording()}
-          >
-            {phase === "listening" ? "RELEASE TO SEND" : "HOLD TO TALK"}
-          </button>
-
-          <button
-            type="button"
-            className={`ghost ${wakeOn ? "ghost--on" : ""}`}
-            onClick={() => (wakeOn ? stopWake() : void startWake())}
-          >
-            {wakeOn ? "WAKE WORD ON" : "ENABLE WAKE WORD"}
-          </button>
-
-          {phase === "listening" && (
-            <button type="button" className="ghost" onClick={cancelRecording}>
-              CANCEL
-            </button>
-          )}
-        </div>
-
-        <form className="typed" onSubmit={submitText}>
-          <input
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            placeholder={sttReady ? "or type a command..." : "type a command..."}
-            aria-label="Type a command"
           />
-          <button type="submit" disabled={connection !== "open" || !draft.trim()}>
-            SEND
-          </button>
-        </form>
+        </section>
+
+        {/* Clean Conversation Stream */}
+        <section className="feed-container-section">
+          <ConversationFeed
+            messages={messages}
+            pendingConfirm={pendingConfirm}
+            onAnswerConfirm={handleAnswerConfirm}
+            pendingQuestion={pendingQuestion}
+            onAnswerQuestion={handleAnswerQuestion}
+            onSuggestionClick={(prompt) => handleSendText(prompt)}
+          />
+        </section>
       </main>
 
-      <ConfirmBar pending={pending} onAnswer={answer} />
-
-      <section className="panels">
-        <Conversation messages={messages} />
-        <ToolTrace tools={tools} />
-      </section>
-
-      <Footer health={health} />
+      {/* Bottom Text & Voice Control Bar */}
+      <MinimalControls
+        phase={phase}
+        draft={draft}
+        onDraftChange={setDraft}
+        onSend={() => handleSendText()}
+        onToggleMic={() => {
+          if (phase === "listening") {
+            void stopMic();
+          } else {
+            void startMic();
+          }
+        }}
+        onStopSpeech={() => {
+          stopPlayback();
+          setPhase("idle");
+        }}
+      />
     </div>
-  );
-}
-
-function Footer({ health }: { health: Health | null }) {
-  if (!health) return null;
-  return (
-    <footer className="footer">
-      <span>{health.policy.source}</span>
-      <span>
-        {health.memory.memories} note(s), {health.memory.turns} turn(s) stored
-      </span>
-      <span>{health.tool_count} tools</span>
-    </footer>
   );
 }

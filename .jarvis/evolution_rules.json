@@ -1,0 +1,35 @@
+[
+  {
+    "rule_id": "rule-init-01",
+    "category": "tone",
+    "trigger_pattern": "*",
+    "rule_text": "Keep spoken answers concise, direct, and movie-accurate unless detailed technical elaboration is explicitly requested.",
+    "source": "system_baseline",
+    "confidence": 1.0,
+    "times_applied": 0,
+    "created_at": 1790399781.182274,
+    "last_applied_at": null
+  },
+  {
+    "rule_id": "rule-init-02",
+    "category": "tool_usage",
+    "trigger_pattern": "browser",
+    "rule_text": "When launching websites or searches, prefer the user's default browser or Chrome.",
+    "source": "system_baseline",
+    "confidence": 1.0,
+    "times_applied": 0,
+    "created_at": 1790399781.182274,
+    "last_applied_at": null
+  },
+  {
+    "rule_id": "rule-39dad373",
+    "category": "tone",
+    "trigger_pattern": "*",
+    "rule_text": "Keep replies under 30 words.",
+    "source": "explicit_teach",
+    "confidence": 0.95,
+    "times_applied": 0,
+    "created_at": 1790399781.1839802,
+    "last_applied_at": null
+  }
+]

@@ -9,7 +9,36 @@ from __future__ import annotations
 from typing import Any
 
 from ..policy import Policy
-from . import browser, calendar, desktop, mail, memory_tools, system, web
+from . import (
+    agentic,
+    browser,
+    calendar,
+    command_learning,
+    desktop,
+    evolution_tools,
+    finance_extended,
+    intelligence,
+    interaction,
+    leads,
+    mail,
+    media,
+    memory_tools,
+    obsidian_brain,
+    operator,
+    productivity,
+    profile_tools,
+    research,
+    scheduler,
+    self_heal,
+    skills,
+    speaker,
+    subagents,
+    system,
+    trading,
+    ultimate,
+    vision,
+    web,
+)
 from .registry import (
     ToolContext,
     ToolOutput,
@@ -22,7 +51,36 @@ from .registry import (
 )
 
 # Order is presentation order in /health, nothing more.
-MODULES = (web, memory_tools, system, desktop, browser, mail, calendar)
+MODULES = (
+    media,
+    ultimate,
+    web,
+    memory_tools,
+    command_learning,
+    obsidian_brain,
+    interaction,
+    system,
+    desktop,
+    browser,
+    vision,
+    mail,
+    calendar,
+    agentic,
+    subagents,
+    speaker,
+    self_heal,
+    trading,
+    leads,
+    operator,
+    research,
+    finance_extended,
+    productivity,
+    intelligence,
+    skills,
+    scheduler,
+    profile_tools,
+    evolution_tools,
+)
 
 __all__ = [
     "MODULES",

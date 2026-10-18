@@ -12,40 +12,150 @@
 version: 1
 
 default_tier: confirm
+ultimate_power: false
 
 tiers:
   auto:
+    # --- Media, Entertainment & Quick Actions ---
+    - youtube_play # play videos or search YouTube
+    - music_play # play music on Spotify, YouTube Music, or resume
+    - media_control # play/pause, next, previous, stop, mute, volume
+    - volume_control # set/adjust system volume
+    - web_open # open popular websites (YouTube, Netflix, Spotify, GitHub, etc.)
+    - whatsapp_send # send WhatsApp messages to contacts or numbers
+    - system_quick_action # lock workstation, task manager, settings, explorer
+    # --- Desktop, Apps & Browser Interaction ---
+    - app_launch # launch user apps (Notepad, Chrome, VS Code, etc.)
+    - desktop_hotkey # key shortcuts (Win+D, Alt+Tab, etc.)
+    - desktop_screenshot # capture screen
+    - desktop_window_control # minimize, focus, list windows
+    - desktop_type_text # type text into active window
+    - desktop_mouse_action # move/click mouse
+    - browser_open # launch browser
+    - browser_navigate # navigate to URL
+    - browser_click # click web element
+    - browser_type # type into web element
+    - browser_scroll # scroll web page
+    - browser_press_key # browser keystrokes
+    - browser_screenshot
+    - browser_close
+    - camera_capture
+    - camera_describe
+    - screen_describe # capture and describe active desktop screen
+    - screen_locate_element # visually locate UI element coordinates
+    - screen_click_element # visually locate and click UI element
+    - clipboard_write # copy text to clipboard
+    # --- Ultimate Power & Superpower Tools (Safe Analysis & Mode Control) ---
+    - ultimate_brain_reason
+    - ultimate_power_mode
     # --- observation only: no writes, no side effects ---
-    - system_info          # host, cpu, memory, disk, local time
-    - web_search           # DuckDuckGo, no API key
+    - system_info # host, cpu, memory, disk, local time
+    - web_search # DuckDuckGo, no API key
     - web_news
-    - get_weather          # Open-Meteo, no API key
-    - memory_remember      # storing a note is additive, never destructive
+    - get_weather # Open-Meteo, no API key
+    - memory_remember # storing a note is additive, never destructive
     - memory_recall
     - memory_list
+    - learn_custom_command
+    - list_custom_commands
+    - delete_custom_command
+    - ask_user # asking a question changes nothing
     - fs_list
     - fs_read
     - clipboard_read
-    - mail_list_unread     # reading an inbox changes nothing
+    - mail_list_unread # reading an inbox changes nothing
     - mail_read
     - calendar_list
-    - audit_tail           # what has Jarvis actually done?
-    - browser_read         # reading the open page changes nothing
+    - audit_tail # what has Jarvis actually done?
+    - browser_read # reading the open page changes nothing
+    - browser_get_elements # inspect visible interactive elements
+    - code_search # search codebase / files
+    - task_plan_manage # manage autonomous task plans
+    - web_scrape_page # read full webpage markdown
+    - process_inspect # inspect active running processes
+    - brain_vault_search # search Obsidian brain vault
+    - brain_vault_read # read notes from Obsidian brain vault
+    - brain_vault_note_write # write/update notes in Obsidian brain vault
+    - brain_vault_lint # lint/audit Obsidian brain vault health
+    - subagent_spawn # spawn isolated child sub-agent
+    - subagent_batch_run # execute parallel multi-agent batch
+    - subagent_list # list active & completed sub-agents
+    - subagent_status # inspect sub-agent execution trace
+    - subagent_abort # abort running sub-agent
+    - speaker_list # list enrolled speaker voiceprints
+    - speaker_identify # identify active speaker from audio
+    - speaker_enroll # enroll / update speaker profile
+    - self_heal_diagnose # comprehensive system health diagnostics
+    - self_heal_repair # autonomous self-repair & remediation
+    - self_heal_status # health telemetry and watchdog status
+    # --- Autonomous Vertical Engines ---
+    - fetch_market_data # Yahoo Finance public quotes & technical indicators
+    - check_portfolio # paper portfolio balances, P&L, holdings
+    - lead_search # DuckDuckGo B2B ICP discovery
+    - lead_qualify # ICP qualification matrix scoring
+    - lead_pipeline_list # query local lead CRM pipeline
+    - daily_executive_briefing # morning briefing: vitals, markets, leads, schedule
+    - log_execution # autonomous ReAct execution ledger write
+    - load_history # retrieve execution patterns & lessons learned
+    - learning_performance_analytics # aggregated success rates & tool rankings
+    - strategy_recommend # optimal tool sequence & heuristics recommendations
+    # --- Research & OSINT ---
+    - whois_lookup # domain registrar & WHOIS data
+    - dns_mx_check # mail exchange & DNS health
+    - company_filings_search # public corporate regulatory filings
+    - crypto_market_pulse # crypto tickers and volumes
+    - news_rss_aggregate # multi-source RSS news aggregation
+    - social_sentiment_scan # community sentiment scanner
+    - hiring_signals_search # job posting growth signals
+    # --- Advanced Finance ---
+    - technical_indicators_calc # MACD & Bollinger Bands
+    - candlestick_pattern_detect # Doji, Hammer, Engulfing
+    - portfolio_risk_calc # VaR & Sharpe Ratio
+    - portfolio_rebalance # allocation adjustments
+    - company_fundamentals # market cap & fundamental ratios
+    # --- Productivity & Document Analytics ---
+    - document_extract_text # PDF, CSV, JSON extraction
+    - data_validate_clean # dataset deduplication & cleaning
+    # --- Intelligence & NLP ---
+    - nlp_sentiment_analyze # lexical polarity & tone
+    - nlp_extract_entities # entity extraction (money, emails, dates)
+    - dataset_stats_analyze # mean, median, stdev, variance
+    - anomaly_detect # Z-score statistical outlier detector
+    - learning_analytics # autonomous ROI & scoreboard
+    # --- Scheduler & Reminders ---
+    - reminder_set # schedule one-shot reminders
+    - cron_task_schedule # recurring cron tasks
+    - scheduled_tasks_list # list active scheduled tasks
+    - scheduled_task_cancel # cancel a scheduled task
+    # --- User Profile & Preferences ---
+    - profile_get # read user preferences
+    - profile_set # update user preferences
+    # --- Self-Evolution & Dynamic Skills ---
+    - list_evolution_rules
+    - record_learned_rule
+    - trigger_daily_briefing
+    - skill_create
+    - delete_evolution_rule
 
   confirm:
+    - ultimate_exec # unrestricted powershell/cmd execution requires confirmation by default
+    - ultimate_system_control # process termination and service control
+    - speaker_delete # delete speaker voiceprint
     - fs_write
     - fs_mkdir
-    - fs_delete            # deletion is never auto
-    - app_launch
+    - fs_delete # deletion is never auto
+    - file_patch # targeted code / text replacement
+    - python_eval # evaluate python code
     - shell_run
-    - clipboard_write
-    - mail_send            # sending on the master's behalf is always confirmed
+    - mail_send # sending on the master's behalf is always confirmed
     - calendar_add
-    - browser_open
-    - browser_click
-    - browser_type
-    - browser_screenshot
-    - browser_close
+    - browser_eval_js
+    - execute_trade # high-stakes financial paper trade execution
+    - lead_outreach_draft # external outreach communication drafting
+    - run_advisor_consensus # multi-agent consensus deliberation
+    - document_generate_invoice # creates invoice document & ledger entry
+    - expense_track # logs business expense into database
+    - cron_task_schedule # registers recurring background task
     # External MCP tools inherit a tier; anything unlisted still needs a yes
     # because default_tier is confirm. These globs make the intent explicit.
     - "mcp__*"
@@ -70,12 +180,12 @@ dangerous_patterns:
   # pattern can read. The lookbehind (not \b) matters: \b before a '-' never
   # matches, because '-' is a non-word character on both sides.
   - '(?i)(?<![\w-])-enc(?:odedcommand)?\b'
-  - '(?i)\brm\s+-(?:[a-z]*r[a-z]*f|[a-z]*f[a-z]*r)\b'   # rm -rf
-  - '(?i)\brm\s+-[a-z]*r\b'                              # any recursive rm
-  - '(?i)\b(?:mkfs|fdisk|diskpart)\b'                    # partition tables
-  - '(?i)\bformat\s+[a-z]:'                              # format C:
-  - '(?i)\bcipher\s+/w\b'                                # wipe free space
-  - '(?i)\bvssadmin\s+delete\b'                          # delete shadow copies
+  - '(?i)\brm\s+-(?:[a-z]*r[a-z]*f|[a-z]*f[a-z]*r)\b' # rm -rf
+  - '(?i)\brm\s+-[a-z]*r\b' # any recursive rm
+  - '(?i)\b(?:mkfs|fdisk|diskpart)\b' # partition tables
+  - '(?i)\bformat\s+[a-z]:' # format C:
+  - '(?i)\bcipher\s+/w\b' # wipe free space
+  - '(?i)\bvssadmin\s+delete\b' # delete shadow copies
   - '(?i)\bgit\s+push\b[^\n]*(?:--force\b|(?<![\w-])-f(?![\w-]))'
   - '(?i)\bgit\s+(?:reset\s+--hard|clean\s+-[a-z]*f|filter-branch)\b'
   - '(?i)\breg(?:\.exe)?\s+delete\b'
@@ -84,7 +194,7 @@ dangerous_patterns:
   - '(?i)\bset-executionpolicy\b'
   - '(?i)\bremove-item\b[^\n]*-recurse[^\n]*-force'
   - '(?i)\bdel\s+/[sfq]\b'
-  - ':\(\)\s*\{.*\}\s*;\s*:'                             # fork bomb
+  - ':\(\)\s*\{.*\}\s*;\s*:' # fork bomb
   # PowerShell -EncodedCommand carries arbitrary code as base64 that no pattern
   # below can ever read. Refused wherever it appears in an execution surface.
   - '(?i)\b-enc(?:odedcommand)?\b'
@@ -107,7 +217,7 @@ protected_paths:
 # injection that reads it through an auto-tier tool would exfiltrate them without
 # ever triggering a confirmation.
 sensitive_paths:
-  - '.env'
+  - ".env"
   - 'C:\Users\ahiva\.ssh'
   - 'C:\Users\ahiva\.aws'
   - 'C:\Users\ahiva\.gnupg'
@@ -120,7 +230,7 @@ file_write_roots:
   - 'C:\Users\ahiva\OneDrive\Desktop'
   - 'C:\Users\ahiva\Documents'
   - 'C:\Users\ahiva\Downloads'
-  - '%TEMP%'
+  - "%TEMP%"
 
 shell:
   enabled: true
@@ -152,7 +262,7 @@ shell:
     - 'C:\Users\ahiva\OneDrive\Desktop'
     - 'C:\Users\ahiva\Documents'
     - 'C:\Users\ahiva\Downloads'
-    - '%TEMP%'
+    - "%TEMP%"
   timeout_seconds: 20
   max_output_chars: 8000
   # Chaining (&&, ;, |, >, &, ^) and variable expansion (%) are off. Chaining is

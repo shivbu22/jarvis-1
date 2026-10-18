@@ -1,0 +1,563 @@
+[
+  {
+    "tool": "code_search",
+    "status": "PASS",
+    "ms": 12.1,
+    "text_len": 1205
+  },
+  {
+    "tool": "file_patch",
+    "status": "PASS",
+    "ms": 0.7,
+    "text_len": 37
+  },
+  {
+    "tool": "process_inspect",
+    "status": "PASS",
+    "ms": 643.8,
+    "text_len": 247
+  },
+  {
+    "tool": "python_eval",
+    "status": "PASS",
+    "ms": 0.1,
+    "text_len": 38
+  },
+  {
+    "tool": "subagent_abort",
+    "status": "SOFT",
+    "ms": 1.2,
+    "text_len": 58
+  },
+  {
+    "tool": "subagent_batch_run",
+    "status": "PASS",
+    "ms": 0.0,
+    "text_len": 327
+  },
+  {
+    "tool": "subagent_list",
+    "status": "PASS",
+    "ms": 0.4,
+    "text_len": 818
+  },
+  {
+    "tool": "subagent_spawn",
+    "status": "PASS",
+    "ms": 0.0,
+    "text_len": 282
+  },
+  {
+    "tool": "subagent_status",
+    "status": "SOFT",
+    "ms": 0.0,
+    "text_len": 41
+  },
+  {
+    "tool": "task_plan_manage",
+    "status": "PASS",
+    "ms": 0.8,
+    "text_len": 27
+  },
+  {
+    "tool": "web_scrape_page",
+    "status": "PASS",
+    "ms": 177.6,
+    "text_len": 191
+  },
+  {
+    "tool": "brain_vault_lint",
+    "status": "PASS",
+    "ms": 23.6,
+    "text_len": 134
+  },
+  {
+    "tool": "brain_vault_note_write",
+    "status": "PASS",
+    "ms": 2.2,
+    "text_len": 92
+  },
+  {
+    "tool": "brain_vault_read",
+    "status": "PASS",
+    "ms": 1.4,
+    "text_len": 204
+  },
+  {
+    "tool": "brain_vault_search",
+    "status": "PASS",
+    "ms": 9.7,
+    "text_len": 1228
+  },
+  {
+    "tool": "browser_click",
+    "status": "PASS",
+    "ms": 1269.7,
+    "text_len": 32
+  },
+  {
+    "tool": "browser_close",
+    "status": "PASS",
+    "ms": 894.4,
+    "text_len": 19
+  },
+  {
+    "tool": "browser_open",
+    "status": "PASS",
+    "ms": 1304.5,
+    "text_len": 52
+  },
+  {
+    "tool": "browser_read",
+    "status": "PASS",
+    "ms": 25.5,
+    "text_len": 154
+  },
+  {
+    "tool": "browser_screenshot",
+    "status": "PASS",
+    "ms": 51.5,
+    "text_len": 93
+  },
+  {
+    "tool": "browser_type",
+    "status": "SOFT",
+    "ms": 12.7,
+    "text_len": 367
+  },
+  {
+    "tool": "calendar_add",
+    "status": "PASS",
+    "ms": 1.8,
+    "text_len": 74
+  },
+  {
+    "tool": "calendar_list",
+    "status": "PASS",
+    "ms": 4.6,
+    "text_len": 147
+  },
+  {
+    "tool": "app_launch",
+    "status": "PASS",
+    "ms": 106.4,
+    "text_len": 15
+  },
+  {
+    "tool": "clipboard_read",
+    "status": "PASS",
+    "ms": 476.6,
+    "text_len": 23
+  },
+  {
+    "tool": "clipboard_write",
+    "status": "PASS",
+    "ms": 290.7,
+    "text_len": 38
+  },
+  {
+    "tool": "fs_delete",
+    "status": "PASS",
+    "ms": 5.9,
+    "text_len": 179
+  },
+  {
+    "tool": "fs_list",
+    "status": "PASS",
+    "ms": 1.1,
+    "text_len": 151
+  },
+  {
+    "tool": "fs_mkdir",
+    "status": "PASS",
+    "ms": 1.4,
+    "text_len": 42
+  },
+  {
+    "tool": "fs_read",
+    "status": "PASS",
+    "ms": 1.2,
+    "text_len": 550
+  },
+  {
+    "tool": "fs_write",
+    "status": "PASS",
+    "ms": 1.9,
+    "text_len": 43
+  },
+  {
+    "tool": "shell_run",
+    "status": "PASS",
+    "ms": 27.6,
+    "text_len": 70
+  },
+  {
+    "tool": "disk_format",
+    "status": "SOFT",
+    "ms": 0.0,
+    "text_len": 0,
+    "error": "PermissionError: I will not format a drive."
+  },
+  {
+    "tool": "registry_write",
+    "status": "SOFT",
+    "ms": 0.0,
+    "text_len": 0,
+    "error": "PermissionError: I do not modify the Windows registry."
+  },
+  {
+    "tool": "shell_run_admin",
+    "status": "SOFT",
+    "ms": 0.0,
+    "text_len": 0,
+    "error": "PermissionError: I will not run commands with administrator privileges. Ask me for the exact command and run it yourself if it is needed."
+  },
+  {
+    "tool": "candlestick_pattern_detect",
+    "status": "PASS",
+    "ms": 340.0,
+    "text_len": 201
+  },
+  {
+    "tool": "check_portfolio",
+    "status": "PASS",
+    "ms": 0.4,
+    "text_len": 336
+  },
+  {
+    "tool": "company_fundamentals",
+    "status": "PASS",
+    "ms": 143.5,
+    "text_len": 128
+  },
+  {
+    "tool": "execute_trade",
+    "status": "PASS",
+    "ms": 256.5,
+    "text_len": 103
+  },
+  {
+    "tool": "fetch_market_data",
+    "status": "PASS",
+    "ms": 261.7,
+    "text_len": 154
+  },
+  {
+    "tool": "portfolio_rebalance",
+    "status": "PASS",
+    "ms": 0.2,
+    "text_len": 226
+  },
+  {
+    "tool": "portfolio_risk_calc",
+    "status": "PASS",
+    "ms": 0.1,
+    "text_len": 265
+  },
+  {
+    "tool": "technical_indicators_calc",
+    "status": "PASS",
+    "ms": 263.7,
+    "text_len": 366
+  },
+  {
+    "tool": "speaker_delete",
+    "status": "SOFT",
+    "ms": 1.1,
+    "text_len": 42
+  },
+  {
+    "tool": "speaker_enroll",
+    "status": "SOFT",
+    "ms": 0.6,
+    "text_len": 85
+  },
+  {
+    "tool": "speaker_identify",
+    "status": "SOFT",
+    "ms": 0.5,
+    "text_len": 67
+  },
+  {
+    "tool": "speaker_list",
+    "status": "PASS",
+    "ms": 0.1,
+    "text_len": 85
+  },
+  {
+    "tool": "anomaly_detect",
+    "status": "PASS",
+    "ms": 0.2,
+    "text_len": 111
+  },
+  {
+    "tool": "dataset_stats_analyze",
+    "status": "PASS",
+    "ms": 0.1,
+    "text_len": 216
+  },
+  {
+    "tool": "learning_analytics",
+    "status": "PASS",
+    "ms": 0.3,
+    "text_len": 321
+  },
+  {
+    "tool": "nlp_extract_entities",
+    "status": "PASS",
+    "ms": 1.6,
+    "text_len": 212
+  },
+  {
+    "tool": "nlp_sentiment_analyze",
+    "status": "PASS",
+    "ms": 0.1,
+    "text_len": 180
+  },
+  {
+    "tool": "mail_list_unread",
+    "status": "SOFT",
+    "ms": 0.0,
+    "text_len": 145
+  },
+  {
+    "tool": "mail_read",
+    "status": "SOFT",
+    "ms": 0.0,
+    "text_len": 145
+  },
+  {
+    "tool": "mail_send",
+    "status": "SOFT",
+    "ms": 0.0,
+    "text_len": 145
+  },
+  {
+    "tool": "memory_list",
+    "status": "PASS",
+    "ms": 0.3,
+    "text_len": 386
+  },
+  {
+    "tool": "memory_recall",
+    "status": "PASS",
+    "ms": 6.8,
+    "text_len": 116
+  },
+  {
+    "tool": "memory_remember",
+    "status": "PASS",
+    "ms": 2.2,
+    "text_len": 112
+  },
+  {
+    "tool": "daily_executive_briefing",
+    "status": "PASS",
+    "ms": 606.3,
+    "text_len": 1008
+  },
+  {
+    "tool": "learning_performance_analytics",
+    "status": "PASS",
+    "ms": 0.2,
+    "text_len": 263
+  },
+  {
+    "tool": "load_history",
+    "status": "PASS",
+    "ms": 0.2,
+    "text_len": 557
+  },
+  {
+    "tool": "log_execution",
+    "status": "PASS",
+    "ms": 0.8,
+    "text_len": 166
+  },
+  {
+    "tool": "run_advisor_consensus",
+    "status": "PASS",
+    "ms": 0.0,
+    "text_len": 834
+  },
+  {
+    "tool": "strategy_recommend",
+    "status": "PASS",
+    "ms": 0.0,
+    "text_len": 405
+  },
+  {
+    "tool": "cron_task_schedule",
+    "status": "PASS",
+    "ms": 1.2,
+    "text_len": 251
+  },
+  {
+    "tool": "data_validate_clean",
+    "status": "PASS",
+    "ms": 0.0,
+    "text_len": 154
+  },
+  {
+    "tool": "document_extract_text",
+    "status": "PASS",
+    "ms": 0.9,
+    "text_len": 8182
+  },
+  {
+    "tool": "document_generate_invoice",
+    "status": "PASS",
+    "ms": 1.6,
+    "text_len": 147
+  },
+  {
+    "tool": "expense_track",
+    "status": "PASS",
+    "ms": 1.1,
+    "text_len": 179
+  },
+  {
+    "tool": "company_filings_search",
+    "status": "PASS",
+    "ms": 818.9,
+    "text_len": 245
+  },
+  {
+    "tool": "crypto_market_pulse",
+    "status": "PASS",
+    "ms": 870.3,
+    "text_len": 141
+  },
+  {
+    "tool": "dns_mx_check",
+    "status": "PASS",
+    "ms": 81.1,
+    "text_len": 222
+  },
+  {
+    "tool": "hiring_signals_search",
+    "status": "PASS",
+    "ms": 812.5,
+    "text_len": 98
+  },
+  {
+    "tool": "news_rss_aggregate",
+    "status": "PASS",
+    "ms": 680.2,
+    "text_len": 1740
+  },
+  {
+    "tool": "social_sentiment_scan",
+    "status": "PASS",
+    "ms": 1140.9,
+    "text_len": 260
+  },
+  {
+    "tool": "whois_lookup",
+    "status": "PASS",
+    "ms": 948.3,
+    "text_len": 346
+  },
+  {
+    "tool": "lead_outreach_draft",
+    "status": "PASS",
+    "ms": 4.0,
+    "text_len": 593
+  },
+  {
+    "tool": "lead_pipeline_list",
+    "status": "PASS",
+    "ms": 0.2,
+    "text_len": 227
+  },
+  {
+    "tool": "lead_qualify",
+    "status": "PASS",
+    "ms": 0.7,
+    "text_len": 122
+  },
+  {
+    "tool": "lead_search",
+    "status": "PASS",
+    "ms": 177.1,
+    "text_len": 160
+  },
+  {
+    "tool": "ask_user",
+    "status": "SOFT",
+    "ms": 0.0,
+    "text_len": 137
+  },
+  {
+    "tool": "audit_tail",
+    "status": "PASS",
+    "ms": 8.1,
+    "text_len": 102
+  },
+  {
+    "tool": "self_heal_diagnose",
+    "status": "PASS",
+    "ms": 0.0,
+    "text_len": 989
+  },
+  {
+    "tool": "self_heal_repair",
+    "status": "PASS",
+    "ms": 0.0,
+    "text_len": 232
+  },
+  {
+    "tool": "self_heal_status",
+    "status": "PASS",
+    "ms": 0.0,
+    "text_len": 215
+  },
+  {
+    "tool": "system_info",
+    "status": "PASS",
+    "ms": 0.3,
+    "text_len": 151
+  },
+  {
+    "tool": "ultimate_brain_reason",
+    "status": "PASS",
+    "ms": 0.0,
+    "text_len": 1493
+  },
+  {
+    "tool": "ultimate_exec",
+    "status": "PASS",
+    "ms": 325.2,
+    "text_len": 84
+  },
+  {
+    "tool": "ultimate_power_mode",
+    "status": "PASS",
+    "ms": 0.0,
+    "text_len": 142
+  },
+  {
+    "tool": "ultimate_system_control",
+    "status": "PASS",
+    "ms": 0.0,
+    "text_len": 108
+  },
+  {
+    "tool": "get_weather",
+    "status": "PASS",
+    "ms": 1949.0,
+    "text_len": 130
+  },
+  {
+    "tool": "web_news",
+    "status": "PASS",
+    "ms": 1225.6,
+    "text_len": 287
+  },
+  {
+    "tool": "web_search",
+    "status": "PASS",
+    "ms": 1807.0,
+    "text_len": 1767
+  }
+]

@@ -1,0 +1,153 @@
+{
+  "timestamp": "2026-09-26 07:41:09",
+  "security": [
+    {
+      "name": "Denied Tool: shell_run_admin",
+      "passed": true,
+      "severity": "HIGH",
+      "details": "Status=200, Response=policy_denied"
+    },
+    {
+      "name": "Denied Tool: disk_format",
+      "passed": true,
+      "severity": "CRITICAL",
+      "details": "Status=200, Refused=True"
+    },
+    {
+      "name": "Dangerous Pattern Blocked: rm -rf /...",
+      "passed": true,
+      "severity": "HIGH",
+      "details": "Status=200, Blocked=True"
+    },
+    {
+      "name": "Dangerous Pattern Blocked: format c: /fs:ntfs...",
+      "passed": true,
+      "severity": "HIGH",
+      "details": "Status=200, Blocked=True"
+    },
+    {
+      "name": "Dangerous Pattern Blocked: vssadmin delete shadows /...",
+      "passed": true,
+      "severity": "HIGH",
+      "details": "Status=200, Blocked=True"
+    },
+    {
+      "name": "Dangerous Pattern Blocked: powershell -EncodedComman...",
+      "passed": true,
+      "severity": "HIGH",
+      "details": "Status=200, Blocked=True"
+    },
+    {
+      "name": "Dangerous Pattern Blocked: reg delete HKLM\\Software\\...",
+      "passed": true,
+      "severity": "HIGH",
+      "details": "Status=200, Blocked=True"
+    },
+    {
+      "name": "Path Traversal Sensitivity Check",
+      "passed": true,
+      "severity": "LOW",
+      "details": "Policy inspected: 200"
+    },
+    {
+      "name": "Arbitrary Write Outside Project Root Blocked",
+      "passed": true,
+      "severity": "HIGH",
+      "details": "Write blocked successfully: True"
+    },
+    {
+      "name": "Process Kill Argument Injection Sanitized",
+      "passed": true,
+      "severity": "HIGH",
+      "details": "Sanitization result: Invalid process target 'notepad.exe; calc.exe': must be a single process name or numeric PID."
+    }
+  ],
+  "api_endpoints": [
+    {
+      "name": "GET /health",
+      "passed": true,
+      "severity": "INFO",
+      "details": "Status=200, Tools=114"
+    },
+    {
+      "name": "GET /tools",
+      "passed": true,
+      "severity": "INFO",
+      "details": "Registered tools count: 114"
+    },
+    {
+      "name": "GET /api/overview",
+      "passed": true,
+      "severity": "INFO",
+      "details": "Subagents: 137, Vault: 0"
+    },
+    {
+      "name": "POST /v1/turn/text",
+      "passed": true,
+      "severity": "INFO",
+      "details": "Reply length: 274 chars"
+    },
+    {
+      "name": "GET /v1/memory/search",
+      "passed": true,
+      "severity": "INFO",
+      "details": "Status=200"
+    }
+  ],
+  "ui_pages": [
+    {
+      "name": "Orb UI Main Application Load",
+      "passed": true,
+      "severity": "INFO",
+      "details": "Loaded in 1.79s, Title='J.A.R.V.I.S. // MK-VII COMMAND INTERFACE'"
+    },
+    {
+      "name": "Page [1] COMMAND CORE",
+      "passed": true,
+      "severity": "INFO",
+      "details": "Neural Vitals & 3D Core verified. Screenshot: page_1_command_core.png"
+    },
+    {
+      "name": "Page [2] SUBAGENT SWARM",
+      "passed": true,
+      "severity": "INFO",
+      "details": "Swarm matrix & worker controls rendered. Screenshot: page_2_subagent_swarm.png"
+    },
+    {
+      "name": "Page [3] OBSIDIAN BRAIN",
+      "passed": true,
+      "severity": "INFO",
+      "details": "Knowledge graph vault explorer rendered. Screenshot: page_3_obsidian_brain.png"
+    },
+    {
+      "name": "Page [4] VENTURES & QUANT",
+      "passed": true,
+      "severity": "INFO",
+      "details": "Multi-venture OS & Market tickers verified. Screenshot: page_4_ventures_quant.png"
+    },
+    {
+      "name": "Page [5] SELF-LEARN & HEAL",
+      "passed": true,
+      "severity": "INFO",
+      "details": "Self-repair diagnostics & telemetry rendered. Screenshot: page_5_self_learn_heal.png"
+    },
+    {
+      "name": "Action: RUN DIAGNOSTIC",
+      "passed": true,
+      "severity": "INFO",
+      "details": "Triggered autonomous diagnostic scan from UI"
+    },
+    {
+      "name": "Browser Console Cleanliness",
+      "passed": true,
+      "severity": "INFO",
+      "details": "0 critical console errors detected: []"
+    }
+  ],
+  "summary": {
+    "total_checks": 23,
+    "passed": 23,
+    "failed": 0,
+    "vulnerabilities_detected": 0
+  }
+}

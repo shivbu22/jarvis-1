@@ -14,6 +14,15 @@ from .registry import ToolContext, ToolOutput, ToolSpec, object_schema, param
 
 def memory_remember(ctx: ToolContext, text: str, tags: str = "") -> ToolOutput:
     memory_id = ctx.memory.add(text, tags=tags, source="voice")
+    if memory_id < 0:
+        # A near-duplicate: nothing new was stored, and the original note's
+        # seen-count went up instead. Saying so plainly stops the model from
+        # claiming a fresh memory was created -- and from re-saving the same
+        # fact in different words every few turns.
+        return ToolOutput(
+            text=f"I already have this noted ('{text}' or similar), so nothing new was saved.",
+            data={"id": -memory_id, "text": text, "tags": tags, "duplicate": True},
+        )
     return ToolOutput(
         text=f"Remembered: {text}",
         data={"id": memory_id, "text": text, "tags": tags},

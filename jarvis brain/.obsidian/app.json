@@ -1,0 +1,11 @@
+{
+  "useTab": true,
+  "tabSize": 2,
+  "showLineNumber": true,
+  "useMarkdownLinks": false,
+  "attachmentFolderPath": "raw/assets",
+  "livePreview": true,
+  "strictLineBreaks": false,
+  "readableLineLength": true,
+  "promptDelete": false
+}

@@ -1,0 +1,611 @@
+﻿<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>JARVIS // SYS::CORE - MONOLITH TERMINAL</title>
+<!-- Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;0,800;1,400&amp;family=Space+Grotesk:wght@600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-surface": "#e2e2e2",
+            "primary-fixed": "#ffdbd1",
+            "surface-bright": "#38393a",
+            "on-tertiary-container": "#2a2a2a",
+            "surface-container-lowest": "#0c0f0f",
+            "error": "#ffb4ab",
+            "surface-variant": "#333535",
+            "on-surface-variant": "#e7bdb2",
+            "tertiary-fixed-dim": "#c8c6c5",
+            "on-primary-fixed-variant": "#882000",
+            "on-primary-container": "#541000",
+            "on-secondary": "#303030",
+            "on-secondary-fixed-variant": "#474747",
+            "secondary": "#c8c6c6",
+            "secondary-container": "#474747",
+            "surface-container-highest": "#333535",
+            "surface-container": "#1e2020",
+            "surface-container-high": "#282a2b",
+            "on-error-container": "#ffdad6",
+            "outline": "#ad887e",
+            "inverse-on-surface": "#2f3131",
+            "surface-tint": "#ffb5a1",
+            "on-tertiary-fixed-variant": "#474746",
+            "on-secondary-container": "#b6b5b4",
+            "primary-container": "#ff5626",
+            "primary-fixed-dim": "#ffb5a1",
+            "on-error": "#690005",
+            "secondary-fixed-dim": "#c8c6c6",
+            "surface": "#121414",
+            "primary": "#ffb5a1",
+            "error-container": "#93000a",
+            "on-primary": "#601400",
+            "on-tertiary-fixed": "#1b1c1c",
+            "on-tertiary": "#303030",
+            "on-background": "#e2e2e2",
+            "background": "#121414",
+            "tertiary-fixed": "#e4e2e1",
+            "inverse-primary": "#b12d00",
+            "outline-variant": "#5d4038",
+            "on-primary-fixed": "#3b0900",
+            "secondary-fixed": "#e4e2e1",
+            "tertiary-container": "#929090",
+            "tertiary": "#c8c6c5",
+            "inverse-surface": "#e2e2e2",
+            "surface-container-low": "#1a1c1c",
+            "surface-dim": "#121414",
+            "on-secondary-fixed": "#1b1c1c"
+          },
+          "borderRadius": {
+            "DEFAULT": "0px",
+            "lg": "0px",
+            "xl": "0px",
+            "full": "0px"
+          },
+          "spacing": {
+            "space-xl": "2rem",
+            "space-sm": "0.5rem",
+            "space-lg": "1.5rem",
+            "space-xs": "0.25rem",
+            "space-md": "1rem",
+            "margin": "1rem",
+            "gutter": "0px",
+            "margin-mobile": "0.5rem",
+            "gutter-loose": "1px"
+          },
+          "fontFamily": {
+            "body-md": ["JetBrains Mono"],
+            "label-caps": ["JetBrains Mono"],
+            "headline-md": ["Space Grotesk"],
+            "display-xl": ["Space Grotesk"],
+            "display-xl-mobile": ["Space Grotesk"],
+            "code-sm": ["JetBrains Mono"],
+            "body-lg": ["JetBrains Mono"],
+            "title-sm": ["Space Grotesk"],
+            "headline-lg": ["Space Grotesk"],
+            "headline-lg-mobile": ["Space Grotesk"]
+          },
+          "fontSize": {
+            "body-md": ["12px", { "lineHeight": "18px", "letterSpacing": "0em", "fontWeight": "400" }],
+            "label-caps": ["11px", { "lineHeight": "14px", "letterSpacing": "0.12em", "fontWeight": "700" }],
+            "headline-md": ["20px", { "lineHeight": "24px", "letterSpacing": "0.02em", "fontWeight": "700" }],
+            "display-xl": ["64px", { "lineHeight": "68px", "letterSpacing": "-0.04em", "fontWeight": "800" }],
+            "display-xl-mobile": ["32px", { "lineHeight": "36px", "letterSpacing": "-0.03em", "fontWeight": "800" }],
+            "code-sm": ["10px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "500" }],
+            "body-lg": ["14px", { "lineHeight": "22px", "letterSpacing": "0em", "fontWeight": "400" }],
+            "title-sm": ["14px", { "lineHeight": "18px", "letterSpacing": "0.06em", "fontWeight": "700" }],
+            "headline-lg": ["36px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "800" }],
+            "headline-lg-mobile": ["24px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "800" }]
+          }
+        }
+      }
+    }
+  </script>
+<style>
+    * {
+      border-radius: 0px !important;
+    }
+    @keyframes blink {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
+    .cursor-blink {
+      animation: blink 1s infinite;
+    }
+    /* Scrollbars brutalist raw */
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0c0f0f;
+      border-left: 1px solid #5d4038;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #5d4038;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #ff5626;
+    }
+  </style>
+</head>
+<body class="bg-background text-on-surface font-body-md text-body-md antialiased min-h-screen flex flex-col selection:bg-primary-container selection:text-surface overflow-x-hidden">
+<!-- ================= TOP NAV BAR (SHARED COMPONENT: TopNavBar) ================= -->
+<!-- Executing style_shell_layout, style_bg_color, style_typography verbatim from JSON -->
+<header class="flex justify-between items-center w-full px-space-md py-space-sm border-b border-outline-variant bg-surface z-50 sticky top-0">
+<!-- Left: Brand / Monolith ID -->
+<div class="flex items-center gap-space-md">
+<div class="flex items-center gap-space-xs font-headline-md text-headline-md font-bold uppercase tracking-wider text-on-surface">
+<span class="w-3 h-3 bg-primary-container inline-block"></span>
+<span>JARVIS // SYS::CORE</span>
+<span class="text-primary-container cursor-blink font-body-md text-body-md ml-1">â–ˆ</span>
+</div>
+<div class="hidden lg:flex items-center border-l border-outline-variant pl-space-md gap-space-xs font-code-sm text-code-sm uppercase tracking-widest text-secondary">
+<span class="text-on-surface bg-surface-container px-1">[SYS: NOMINAL]</span>
+<span class="text-primary-container">[BRAIN: QWEN3-LOCAL]</span>
+<span class="text-secondary">[EARS: WHISPER-ACTIVE]</span>
+<span class="text-secondary">[VOICE: CHATTERBOX]</span>
+<span class="text-secondary">[NODES: 42]</span>
+<span class="text-primary">[LATENCY: 0.8s]</span>
+</div>
+</div>
+<!-- Center: Links (Desktop) -->
+<nav class="hidden md:flex items-center gap-space-lg">
+<a class="border-b-2 border-primary-container text-primary-container font-label-caps text-label-caps uppercase tracking-wider pb-1" href="#">TELEMETRY</a>
+<a class="text-secondary font-label-caps text-label-caps uppercase tracking-wider hover:text-on-surface" href="#">NEURAL_STREAM</a>
+<a class="text-secondary font-label-caps text-label-caps uppercase tracking-wider hover:text-on-surface" href="#">MEMORY_BANKS</a>
+<a class="text-secondary font-label-caps text-label-caps uppercase tracking-wider hover:text-on-surface" href="#">DIAGNOSTICS</a>
+</nav>
+<!-- Right: Trailing Actions -->
+<div class="flex items-center gap-space-sm">
+<div class="hidden sm:flex items-center gap-1 border border-outline-variant px-space-xs py-0.5 font-code-sm text-code-sm text-secondary">
+<span>DEFCON:</span>
+<span class="text-on-surface font-bold">0</span>
+</div>
+<!-- Icon Actions -->
+<button class="w-8 h-8 flex items-center justify-center border border-outline-variant text-secondary hover:bg-surface-variant hover:text-on-surface" title="terminal">
+<span class="material-symbols-outlined text-sm">terminal</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center border border-outline-variant text-secondary hover:bg-surface-variant hover:text-on-surface" title="tune">
+<span class="material-symbols-outlined text-sm">tune</span>
+</button>
+<!-- Exec Override -->
+<button class="hidden sm:block border border-outline-variant px-space-sm py-1 font-label-caps text-label-caps uppercase tracking-wider text-on-surface hover:bg-surface-variant active:bg-primary-container active:text-surface">
+        EXEC_OVERRIDE
+      </button>
+<!-- Kill Switch (Trailing Primary Action) -->
+<button class="bg-primary-container text-surface-container-lowest font-headline-md text-title-sm px-space-md py-1 font-bold uppercase tracking-wider hover:bg-white hover:text-black active:bg-error">
+        KILL_SWITCH
+      </button>
+</div>
+</header>
+<!-- ================= MAIN BODY: THREE-COLUMN RIGID GRID MATRIX ================= -->
+<div class="flex-1 flex flex-col md:flex-row w-full border-b border-outline-variant">
+<!-- ================= COLUMN A: LEFT TELEMETRY COLUMN ================= -->
+<section class="w-full md:w-80 lg:w-96 flex-shrink-0 border-b md:border-b-0 md:border-r border-outline-variant bg-surface-container-lowest flex flex-col justify-between">
+<!-- Node Header Bar -->
+<div class="p-space-md border-b border-outline-variant flex justify-between items-center bg-surface-container-low">
+<div>
+<div class="font-title-sm text-title-sm font-bold uppercase tracking-wider text-on-surface">NODE_ALPHA // 00</div>
+<div class="font-code-sm text-code-sm text-primary">STATUS: OPERATIONAL</div>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="w-2 h-2 bg-primary-container animate-ping"></span>
+<span class="font-code-sm text-code-sm text-on-surface-variant">ONLINE</span>
+</div>
+</div>
+<!-- Rail Navigation Tabs (Shared SideNavBar Anchors) -->
+<div class="grid grid-cols-5 md:grid-cols-1 border-b border-outline-variant">
+<button class="bg-surface-variant text-primary font-label-caps text-label-caps border-l-2 border-primary-container px-space-md py-space-sm flex items-center gap-space-sm justify-center md:justify-start">
+<span class="material-symbols-outlined text-sm">dataset</span>
+<span class="hidden md:inline">MACRO_01</span>
+</button>
+<button class="text-secondary font-label-caps text-label-caps px-space-md py-space-sm flex items-center gap-space-sm hover:text-on-surface hover:bg-surface-container justify-center md:justify-start">
+<span class="material-symbols-outlined text-sm">precision_manufacturing</span>
+<span class="hidden md:inline">MACRO_02</span>
+</button>
+<button class="text-secondary font-label-caps text-label-caps px-space-md py-space-sm flex items-center gap-space-sm hover:text-on-surface hover:bg-surface-container justify-center md:justify-start">
+<span class="material-symbols-outlined text-sm">monitoring</span>
+<span class="hidden md:inline">ASCII_CHART</span>
+</button>
+<button class="text-secondary font-label-caps text-label-caps px-space-md py-space-sm flex items-center gap-space-sm hover:text-on-surface hover:bg-surface-container justify-center md:justify-start">
+<span class="material-symbols-outlined text-sm">graphic_eq</span>
+<span class="hidden md:inline">AUDIO_CORE</span>
+</button>
+<button class="text-secondary font-label-caps text-label-caps px-space-md py-space-sm flex items-center gap-space-sm hover:text-on-surface hover:bg-surface-container justify-center md:justify-start">
+<span class="material-symbols-outlined text-sm">receipt_long</span>
+<span class="hidden md:inline">AUDIT_TRACE</span>
+</button>
+</div>
+<!-- Hard Telemetry Panels -->
+<div class="p-space-md flex-1 flex flex-col gap-space-md overflow-y-auto">
+<!-- HARDWARE MATRIX -->
+<div class="border border-outline-variant bg-surface p-space-sm">
+<div class="font-code-sm text-code-sm font-bold uppercase tracking-widest text-primary border-b border-outline-variant pb-1 mb-space-sm flex justify-between">
+<span>// HARDWARE_MATRIX</span>
+<span>FREQ: 4.80GHz</span>
+</div>
+<!-- CPU Cores Allocation -->
+<div class="space-y-2 font-code-sm text-code-sm">
+<div>
+<div class="flex justify-between text-secondary mb-0.5">
+<span>CPU [16-CORE LOAD]</span>
+<span class="text-on-surface font-bold">60%</span>
+</div>
+<div class="text-primary tracking-tighter">[â–“â–“â–“â–“â–“â–“â–‘â–‘â–‘â–‘] 60%</div>
+</div>
+<!-- VRAM Allocation -->
+<div>
+<div class="flex justify-between text-secondary mb-0.5">
+<span>VRAM [UNIFIED]</span>
+<span class="text-on-surface font-bold">4.2GB / 8.0GB</span>
+</div>
+<div class="text-on-surface tracking-tighter">[â–“â–“â–“â–“â–‘â–‘â–‘â–‘â–‘â–‘] 52.5%</div>
+</div>
+<!-- GPU Cluster Dual RTX 4090 -->
+<div class="border-t border-outline-variant pt-2 mt-2">
+<div class="flex justify-between text-secondary">
+<span>GPU CLUSTER [DUAL 4090]</span>
+<span class="text-primary-container font-bold">TEMP: 49Â°C</span>
+</div>
+<div class="flex justify-between text-secondary">
+<span>FAN SPEED: 64% PWM</span>
+<span class="text-on-surface">WATTS: 312W</span>
+</div>
+</div>
+</div>
+</div>
+<!-- AUDIO SPECTRUM (Vertical ASCII) -->
+<div class="border border-outline-variant bg-surface p-space-sm">
+<div class="font-code-sm text-code-sm font-bold uppercase tracking-widest text-primary border-b border-outline-variant pb-1 mb-space-sm flex justify-between">
+<span>// AUDIO_SPECTRUM</span>
+<span>PCM 44.1k</span>
+</div>
+<div class="flex items-end justify-between h-20 px-2 font-code-sm text-code-sm leading-none select-none text-primary-container">
+<div class="flex flex-col items-center gap-1">
+<span class="text-primary-container text-xs">â–ˆ</span>
+<span class="text-on-surface text-xs">â–ˆ</span>
+<span class="text-secondary text-xs">â–†</span>
+<span class="text-secondary text-xs">â–„</span>
+<span class="text-outline text-xs">â–‚</span>
+<span class="text-outline-variant text-[8px]">-00dB</span>
+</div>
+<div class="flex flex-col items-center gap-1">
+<span class="text-on-surface text-xs">â–ˆ</span>
+<span class="text-secondary text-xs">â–†</span>
+<span class="text-secondary text-xs">â–„</span>
+<span class="text-outline text-xs">â–‚</span>
+<span class="text-outline-variant text-[8px]">-06dB</span>
+</div>
+<div class="flex flex-col items-center gap-1">
+<span class="text-primary-container text-xs">â–ˆ</span>
+<span class="text-on-surface text-xs">â–ˆ</span>
+<span class="text-on-surface text-xs">â–ˆ</span>
+<span class="text-secondary text-xs">â–†</span>
+<span class="text-secondary text-xs">â–„</span>
+<span class="text-outline-variant text-[8px]">-12dB</span>
+</div>
+<div class="flex flex-col items-center gap-1">
+<span class="text-secondary text-xs">â–†</span>
+<span class="text-secondary text-xs">â–„</span>
+<span class="text-outline text-xs">â–‚</span>
+<span class="text-outline-variant text-[8px]">-18dB</span>
+</div>
+<div class="flex flex-col items-center gap-1">
+<span class="text-on-surface text-xs">â–ˆ</span>
+<span class="text-on-surface text-xs">â–ˆ</span>
+<span class="text-secondary text-xs">â–†</span>
+<span class="text-outline text-xs">â–‚</span>
+<span class="text-outline-variant text-[8px]">-24dB</span>
+</div>
+<div class="flex flex-col items-center gap-1">
+<span class="text-secondary text-xs">â–„</span>
+<span class="text-outline text-xs">â–‚</span>
+<span class="text-outline-variant text-[8px]">-36dB</span>
+</div>
+</div>
+</div>
+<!-- SUBSYSTEM REGISTER -->
+<div class="border border-outline-variant bg-surface p-space-sm">
+<div class="font-code-sm text-code-sm font-bold uppercase tracking-widest text-primary border-b border-outline-variant pb-1 mb-space-sm flex justify-between">
+<span>// SUBSYSTEM_FLAGS</span>
+<span>REG_0x4F</span>
+</div>
+<div class="grid grid-cols-2 gap-2 font-code-sm text-code-sm">
+<div class="flex items-center gap-1 text-on-surface">
+<span class="text-primary-container font-bold">[1]</span>
+<span>POLICY_GATE</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface">
+<span class="text-primary-container font-bold">[1]</span>
+<span>MEMORY_PERSIST</span>
+</div>
+<div class="flex items-center gap-1 text-on-surface">
+<span class="text-primary-container font-bold">[1]</span>
+<span>TOOL_BRIDGE</span>
+</div>
+<div class="flex items-center gap-1 text-secondary">
+<span class="text-outline font-bold">[0]</span>
+<span>CLOUD_FALLBACK</span>
+</div>
+</div>
+</div>
+<!-- MACRO EXECUTION STRIP -->
+<div class="space-y-1">
+<button class="w-full border border-outline-variant bg-surface hover:bg-surface-variant text-left px-space-sm py-1 font-code-sm text-code-sm text-on-surface flex justify-between active:bg-primary-container active:text-surface">
+<span>[01: RUN_DIAGNOSTICS]</span>
+<span class="text-primary-container">&gt;&gt;</span>
+</button>
+<button class="w-full border border-outline-variant bg-surface hover:bg-surface-variant text-left px-space-sm py-1 font-code-sm text-code-sm text-on-surface flex justify-between active:bg-primary-container active:text-surface">
+<span>[02: SWITCH_BRAIN]</span>
+<span class="text-primary-container">&gt;&gt;</span>
+</button>
+<button class="w-full border border-outline-variant bg-surface hover:bg-surface-variant text-left px-space-sm py-1 font-code-sm text-code-sm text-on-surface flex justify-between active:bg-primary-container active:text-surface">
+<span>[03: FLUSH_MEMORY]</span>
+<span class="text-primary-container">&gt;&gt;</span>
+</button>
+<button class="w-full border border-outline-variant bg-surface hover:bg-surface-variant text-left px-space-sm py-1 font-code-sm text-code-sm text-on-surface flex justify-between active:bg-primary-container active:text-surface">
+<span>[04: TOGGLE_WAKE_WORD]</span>
+<span class="text-primary-container">&gt;&gt;</span>
+</button>
+</div>
+</div>
+<!-- Rail CTA Button -->
+<div class="p-space-md border-t border-outline-variant bg-surface-container-low flex flex-col gap-2">
+<button class="w-full bg-surface-variant border border-outline text-on-surface font-title-sm text-title-sm py-2 px-space-md uppercase font-bold tracking-widest hover:bg-primary-container hover:text-surface-container-lowest transition-none">
+          EXECUTE_BURST
+        </button>
+<div class="flex justify-between items-center font-code-sm text-code-sm text-secondary pt-1">
+<div class="flex items-center gap-1 cursor-pointer hover:text-on-surface">
+<span class="material-symbols-outlined text-xs">settings</span>
+<span>SYS_CONFIG</span>
+</div>
+<div class="flex items-center gap-1 cursor-pointer hover:text-primary-container">
+<span class="material-symbols-outlined text-xs">lock</span>
+<span>LOGOUT</span>
+</div>
+</div>
+</div>
+</section>
+<!-- ================= COLUMN B: CENTER STAGE - ASCII KINETIC MONOLITH ================= -->
+<main class="flex-1 flex flex-col justify-between bg-surface-container-lowest p-space-md relative overflow-hidden">
+<!-- Top Stage Coordinate Ribbon -->
+<div class="flex justify-between items-center border-b border-outline-variant pb-space-sm">
+<div class="flex items-center gap-space-md font-code-sm text-code-sm">
+<span class="text-primary font-bold">SEC_02 // KINETIC_ORB_CORE</span>
+<span class="text-secondary hidden sm:inline">MATRIX: 120x40 GLYPHS</span>
+</div>
+<div class="flex items-center gap-space-sm font-label-caps text-label-caps">
+<span class="border border-outline-variant px-1.5 py-0.5 text-primary-container bg-surface">CORE // ACTIVE</span>
+<span class="border border-outline-variant px-1.5 py-0.5 text-secondary">LOAD: 48%</span>
+<span class="border border-outline-variant px-1.5 py-0.5 text-secondary hidden md:inline">16-BIT PCM</span>
+</div>
+</div>
+<!-- ASCII Kinetic Monolith Center Display -->
+<div class="flex-1 flex flex-col items-center justify-center py-space-lg relative min-h-[320px]">
+<!-- Crosshair & Grid Overlay (Monolithic raw) -->
+<div class="absolute inset-0 pointer-events-none flex flex-col justify-between opacity-30">
+<div class="flex justify-between font-code-sm text-code-sm text-outline-variant">
+<span>[+] 00.00.00</span>
+<span>[+] 00.00.99</span>
+</div>
+<div class="w-full border-t border-dashed border-outline-variant"></div>
+<div class="flex justify-between font-code-sm text-code-sm text-outline-variant">
+<span>[-] 99.00.00</span>
+<span>[-] 99.00.99</span>
+</div>
+</div>
+<!-- Procedural ASCII Sphere/Torus Canvas Viewport -->
+<pre class="font-code-sm text-code-sm md:text-xs leading-[10px] tracking-tight text-on-surface select-none text-center font-bold filter drop-shadow-none" id="ascii-canvas">          <!-- Populated by JavaScript Kinetic Engine below -->
+        </pre>
+<!-- Kinetic Matrix Telemetry HUD -->
+<div class="mt-4 flex flex-wrap justify-center gap-space-md font-code-sm text-code-sm text-secondary">
+<div>ANG_VEL: <span class="text-primary-container">+0.04rad/f</span></div>
+<div>VERTEX_DENSITY: <span class="text-on-surface">1,024</span></div>
+<div>TENSOR_STATE: <span class="text-primary">EVALUATING</span></div>
+</div>
+</div>
+<!-- Massive Brutalist Push-To-Talk Block Trigger -->
+<div class="w-full pt-space-md border-t border-outline-variant">
+<button class="w-full py-4 border-2 border-on-surface bg-surface text-on-surface font-headline-md text-headline-md tracking-wider uppercase font-extrabold hover:bg-on-surface hover:text-surface-container-lowest active:bg-primary-container active:text-surface-container-lowest active:border-primary-container transition-none flex items-center justify-center gap-space-md group" id="ptt-button">
+<span class="w-4 h-4 bg-primary-container group-hover:bg-surface transition-none"></span>
+<span>HOLD TO TRANSMIT // PUSH-TO-TALK</span>
+<span class="font-code-sm text-code-sm font-normal text-secondary group-hover:text-surface">[SPACE]</span>
+</button>
+</div>
+</main>
+<!-- ================= COLUMN C: RIGHT LOG STREAM & ACTION AUDIT ================= -->
+<aside class="w-full md:w-80 lg:w-96 flex-shrink-0 border-t md:border-t-0 md:border-l border-outline-variant bg-surface-container-lowest flex flex-col justify-between">
+<!-- Section Header -->
+<div class="p-space-md border-b border-outline-variant bg-surface-container-low flex justify-between items-center">
+<span class="font-title-sm text-title-sm font-bold uppercase tracking-wider text-on-surface">NEURAL_AUDIT_LOG</span>
+<span class="font-code-sm text-code-sm text-secondary">[AUTO_STREAM: ON]</span>
+</div>
+<!-- Feed Container -->
+<div class="p-space-md flex-1 flex flex-col gap-space-md overflow-y-auto max-h-[500px] md:max-h-none">
+<!-- Syslog Output Feed -->
+<div class="space-y-3 font-code-sm text-code-sm">
+<div class="text-secondary">
+<span class="text-outline-variant font-bold">[SYS_BOOT // 14:00:00]</span> Kernel initialized. QWEN3 loaded via local llama.cpp bridge.
+          </div>
+<!-- User Block Prompt -->
+<div class="border-l-2 border-outline-variant pl-2 py-0.5 bg-surface">
+<div class="text-secondary font-bold">[USER // 14:02:11] &gt;</div>
+<div class="text-on-surface">Query system thermal parameters and network bridge.</div>
+</div>
+<!-- JARVIS Monospace Stark Response -->
+<div class="border-l-2 border-primary-container pl-2 py-0.5 bg-surface-container-low">
+<div class="text-primary font-bold">[JARVIS // 14:02:12] &gt;</div>
+<div class="text-on-surface">Thermal equilibrium maintained. All 12 tool endpoints verified. Latency nominal.</div>
+</div>
+<!-- Tool Execution Trace Card -->
+<div class="border border-outline-variant bg-surface p-space-xs font-code-sm text-code-sm space-y-1">
+<div class="flex justify-between border-b border-outline-variant pb-0.5 text-secondary">
+<span>// TOOL_EXEC_TRACE</span>
+<span class="text-primary">EXIT: 0</span>
+</div>
+<div class="text-on-surface font-mono">
+<div>tool: <span class="text-primary-container font-bold">shell_exec</span></div>
+<div>args: <span class="text-secondary">["sensors", "-j"]</span></div>
+<div>time: <span class="text-on-surface">14ms</span> | alloc: <span class="text-on-surface">24KB</span></div>
+</div>
+</div>
+<div class="text-secondary">
+<span class="text-outline-variant font-bold">[TRACE // 14:02:45]</span> Neural stream synchronized across 42 matrix threads.
+          </div>
+<!-- User Follow-up -->
+<div class="border-l-2 border-outline-variant pl-2 py-0.5 bg-surface">
+<div class="text-secondary font-bold">[USER // 14:03:02] &gt;</div>
+<div class="text-on-surface">Synchronize remote node state and rebuild caches.</div>
+</div>
+</div>
+<!-- High-Contrast Security Policy Intercept Box -->
+<div class="border-2 border-dashed border-primary-container bg-surface-container-low p-space-sm space-y-2">
+<div class="flex items-center gap-1 font-label-caps text-label-caps text-primary-container font-bold">
+<span class="material-symbols-outlined text-sm">warning</span>
+<span>SECURITY_POLICY_INTERCEPT</span>
+</div>
+<div class="font-code-sm text-code-sm text-on-surface">
+            JARVIS requests execution of <code class="bg-surface px-1 text-primary">shell_run('python sync.py --force')</code>.
+          </div>
+<div class="grid grid-cols-2 gap-2 pt-1">
+<button class="bg-primary-container text-surface-container-lowest font-label-caps text-label-caps py-1.5 font-bold uppercase hover:bg-white hover:text-black">
+              [1 : CONFIRM]
+            </button>
+<button class="border border-outline-variant text-secondary font-label-caps text-label-caps py-1.5 font-bold uppercase hover:bg-surface-variant hover:text-on-surface">
+              [0 : REJECT]
+            </button>
+</div>
+</div>
+</div>
+<!-- Quick Metrics Footer -->
+<div class="p-space-sm border-t border-outline-variant bg-surface-container-low font-code-sm text-code-sm flex justify-between text-secondary">
+<span>LOGS: 1,492 LINES</span>
+<span class="text-primary-container">BUFFER: OK</span>
+</div>
+</aside>
+</div>
+<!-- ================= BOTTOM COMMAND MATRIX ================= -->
+<footer class="w-full bg-surface border-t border-outline-variant p-space-md flex flex-col gap-space-xs z-30">
+<!-- Fast Parameters Ribbon -->
+<div class="flex items-center gap-space-sm font-code-sm text-code-sm text-secondary">
+<span class="text-primary font-bold">EXEC_FLAGS:</span>
+<label class="flex items-center gap-1 cursor-pointer hover:text-on-surface">
+<input checked="" class="w-3 h-3 bg-surface border border-outline-variant text-primary-container focus:ring-0" type="checkbox"/>
+<span>[--verbose]</span>
+</label>
+<label class="flex items-center gap-1 cursor-pointer hover:text-on-surface">
+<input class="w-3 h-3 bg-surface border border-outline-variant text-primary-container focus:ring-0" type="checkbox"/>
+<span>[--dry-run]</span>
+</label>
+<label class="flex items-center gap-1 cursor-pointer hover:text-on-surface">
+<input class="w-3 h-3 bg-surface border border-outline-variant text-primary-container focus:ring-0" type="checkbox"/>
+<span>[--force]</span>
+</label>
+<div class="ml-auto hidden sm:block text-outline-variant">
+        ESC: ABORT | TAB: COMPLETE | RET: TRANSMIT
+      </div>
+</div>
+<!-- Input Bar Strip -->
+<form class="flex items-center gap-2" id="command-form" onsubmit="event.preventDefault();">
+<div class="flex-1 flex items-center bg-surface-container-lowest border border-outline-variant px-space-md py-2 focus-within:border-on-surface">
+<span class="font-code-sm text-code-sm font-bold text-primary-container select-none mr-2">&gt;&gt;</span>
+<input class="w-full bg-transparent border-0 p-0 text-on-surface font-body-md text-body-md focus:ring-0 focus:outline-none placeholder:text-secondary placeholder:font-code-sm" id="cmd-input" placeholder="SYS::ENTER COMMAND OR NATURAL SPEECH QUERY..." type="text"/>
+</div>
+<button class="bg-on-surface text-surface-container-lowest font-headline-md text-title-sm px-space-lg py-2.5 font-bold uppercase tracking-wider hover:bg-primary-container hover:text-surface-container-lowest active:bg-primary transition-none" type="submit">
+        [ TRANSMIT ]
+      </button>
+</form>
+</footer>
+<!-- ================= PROCEDURAL ASCII KINETIC ENGINE ================= -->
+<script>
+    (function initAsciiTorus() {
+      const pre = document.getElementById('ascii-canvas');
+      if (!pre) return;
+
+      let A = 0;
+      let B = 0;
+
+      // 3D Donut/Sphere projection in ASCII characters
+      function renderFrame() {
+        const b = [];
+        const z = [];
+        const width = 54;
+        const height = 22;
+
+        for (let k = 0; k < width * height; k++) {
+          b[k] = ' ';
+          z[k] = 0;
+        }
+
+        // Î¸ and Ï† angle increments for geometric wireframe surface
+        for (let j = 0; j < 6.28; j += 0.28) {
+          for (let i = 0; i < 6.28; i += 0.12) {
+            const sini = Math.sin(i);
+            const cosi = Math.cos(i);
+            const sinj = Math.sin(j);
+            const cosj = Math.cos(j);
+            const sinA = Math.sin(A);
+            const cosA = Math.cos(A);
+            const sinB = Math.sin(B);
+            const cosB = Math.cos(B);
+
+            const h = cosj + 2; // Radius offset
+            const D = 1 / (sini * h * sinA + sinj * cosA + 5);
+            const t = sini * h * cosA - sinj * sinA;
+
+            const x = Math.floor(width / 2 + (width * 0.7) * D * (cosi * h * cosB - t * sinB));
+            const y = Math.floor(height / 2 + (height * 0.8) * D * (cosi * h * sinB + t * cosB));
+            const o = x + width * y;
+
+            const N = Math.floor(8 * ((sinj * sinA - sini * cosj * cosA) * cosB - sini * cosj * sinA - sinj * cosA - cosi * cosj * sinB));
+
+            if (height > y && y > 0 && x > 0 && width > x && D > z[o]) {
+              z[o] = D;
+              // Dense industrial brutalist glyph set
+              const chars = ['.', ':', '-', '=', '+', '*', '#', '%', '@', 'â–ˆ'];
+              b[o] = chars[N > 0 ? (N < chars.length ? N : chars.length - 1) : 0];
+            }
+          }
+        }
+
+        let output = '';
+        for (let k = 0; k < width * height; k++) {
+          output += (k % width === width - 1) ? '\n' : b[k];
+        }
+
+        pre.textContent = output;
+        A += 0.04;
+        B += 0.02;
+        requestAnimationFrame(renderFrame);
+      }
+
+      renderFrame();
+
+      // Micro-interactions: Space bar activates Push-to-Talk
+      const pttBtn = document.getElementById('ptt-button');
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT') {
+          e.preventDefault();
+          pttBtn.classList.add('bg-primary-container', 'text-surface-container-lowest');
+        }
+      });
+      window.addEventListener('keyup', (e) => {
+        if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT') {
+          pttBtn.classList.remove('bg-primary-container', 'text-surface-container-lowest');
+        }
+      });
+    })();
+  </script>
+</body></html>
+

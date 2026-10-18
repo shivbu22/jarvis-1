@@ -28,6 +28,8 @@ google-genai>=1.0.0          # Gemini 2.5 Flash function calling
 ddgs>=9.0.0                  # DuckDuckGo search + news, no API key
                              # (successor to duckduckgo-search; web.py degrades
                              #  to direct HTML scraping if it is unavailable)
+psutil>=5.9.0                # system vitals (proactive guardian, self-heal)
+plyer>=2.1.0                 # Windows toast notifications
 
 # --- MCP (client and server) ---
 mcp>=1.0.0

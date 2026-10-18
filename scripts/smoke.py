@@ -108,6 +108,103 @@ def _brain_reachable(brain: str | None, health: dict[str, Any]) -> tuple[bool, s
     return True, ""
 
 
+def _check_wake_word(health: dict[str, Any], client: httpx.Client, report: Report, base: str) -> None:
+    """Prove the wake word works, using nothing but the running gateway.
+
+    A handshake alone proves nothing: the bug this exists for was a detector
+    that answered ``ready`` and then died with ``NoSuchFile`` on its first
+    frame, because the ``openwakeword`` wheel ships without its model weights.
+    So the gateway speaks "Hey Jarvis" through its own /tts and those samples
+    are streamed straight back into /ws/wake, where a detection is required.
+    """
+    import asyncio
+    import io
+    import json
+    from pathlib import Path
+
+    wake = health.get("wake", {})
+    if not wake.get("enabled"):
+        report.skip("wake word", "disabled by configuration (WAKE_ENABLED=0)")
+        return
+    if not wake.get("available"):
+        report.check(
+            "the wake-word package is installed",
+            False,
+            str(wake.get("error") or "openwakeword is missing"),
+        )
+        return
+    if not wake.get("ready"):
+        # Not a fault: the weights are fetched once, on first use.
+        report.skip("wake word", str(wake.get("error") or "weights download on first use"))
+        return
+
+    try:
+        import numpy as np
+        import soundfile as sf
+        import websockets
+    except ImportError as exc:  # the voice extra is optional
+        report.skip("wake word detection", f"needs numpy, soundfile and websockets ({exc})")
+        return
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from apps.gateway.wake import FRAME_BYTES, RATE
+
+    spoken = client.post("/tts", json={"text": "Hey Jarvis, are you there?"})
+    if spoken.status_code != 200:
+        report.check("the wake phrase can be synthesised", False, f"POST /tts {spoken.status_code}")
+        return
+
+    samples, rate = sf.read(io.BytesIO(spoken.content), dtype="float32")
+    if samples.ndim > 1:
+        samples = samples.mean(axis=1)
+    if rate != RATE:
+        # Linear interpolation is plenty: this only has to stay intelligible to
+        # the wake model, and /tts cannot be asked for 16 kHz directly.
+        samples = np.interp(
+            np.linspace(0, len(samples) - 1, int(len(samples) * RATE / rate)),
+            np.arange(len(samples)),
+            samples,
+        ).astype("float32")
+    peak = float(np.max(np.abs(samples))) or 1.0
+    pcm = (samples / peak * 0.7 * 32767).astype("<i2").tobytes()
+
+    async def listen() -> list[dict[str, Any]]:
+        hits: list[dict[str, Any]] = []
+        url = base.replace("https://", "wss://").replace("http://", "ws://") + "/ws/wake"
+        async with websockets.connect(url, max_size=None) as socket:
+            await asyncio.wait_for(socket.recv(), timeout=15)  # the "ready" frame
+
+            async def drain() -> None:
+                async for raw in socket:
+                    try:
+                        event = json.loads(raw)
+                    except ValueError:
+                        continue
+                    if event.get("type") == "wake_detected":
+                        hits.append(event)
+
+            reader = asyncio.create_task(drain())
+            for offset in range(0, len(pcm) - FRAME_BYTES + 1, FRAME_BYTES):
+                await socket.send(pcm[offset : offset + FRAME_BYTES])
+                await asyncio.sleep(0.02)  # faster than real time, still not a flood
+            await asyncio.sleep(2)
+            reader.cancel()
+        return hits
+
+    try:
+        hits = asyncio.run(listen())
+    except Exception as exc:
+        report.check("the wake word listens on /ws/wake", False, f"{type(exc).__name__}: {exc}")
+        return
+
+    best = max((float(hit.get("score") or 0) for hit in hits), default=0.0)
+    report.check(
+        'the wake word hears "Hey Jarvis"',
+        bool(hits),
+        f"score {best:.2f} against threshold {wake.get('threshold')}",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default="http://127.0.0.1:8000", help="Gateway base URL.")
@@ -206,6 +303,9 @@ def main() -> int:
         report.check("POST /tts returns a WAV", ok, f"{len(speech.content)} bytes, {tts.get('engine')}")
     else:
         report.skip("text to speech", "no engine available")
+
+    # --- wake word ---------------------------------------------------------
+    _check_wake_word(health, client, report, base)
 
     # --- a real turn -------------------------------------------------------
     # A turn is only meaningful if the brain behind it is reachable. A reply that

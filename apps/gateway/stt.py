@@ -23,6 +23,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+# Ensure Windows locates cublas64_12.dll / cublasLt64_12.dll for ctranslate2 CUDA acceleration
+try:
+    import torch
+    _torch_lib = os.path.join(os.path.dirname(torch.__file__), "lib")
+    if os.path.isdir(_torch_lib):
+        if hasattr(os, "add_dll_directory"):
+            os.add_dll_directory(_torch_lib)
+        os.environ["PATH"] = _torch_lib + ";" + os.environ.get("PATH", "")
+except Exception:
+    pass
+
 from .config import Settings, stt_decode_options
 
 logger = logging.getLogger(__name__)
@@ -184,11 +195,35 @@ class WhisperSTT:
         CUDA failure this guards against is raised during iteration, not by the
         call itself, so it must not escape the try block.
         """
+        vad_kwargs: dict[str, Any] = {}
+        if self.settings.stt_vad_filter:
+            vad_kwargs["vad_filter"] = True
+            vad_kwargs["vad_parameters"] = {
+                "threshold": getattr(self.settings, "stt_vad_threshold", 0.2),
+                "min_speech_duration_ms": 50,
+                "min_silence_duration_ms": 600,
+                "speech_pad_ms": 200,
+            }
+        else:
+            vad_kwargs["vad_filter"] = False
+
+        effective_prompt = (
+            prompt
+            if prompt is not None
+            else getattr(
+                self.settings,
+                "stt_initial_prompt",
+                "Conversational speech, technical commands, quiet voice, whispered queries.",
+            )
+        )
+
         segments, info = model.transcribe(
             samples,
             language=language,
-            vad_filter=self.settings.stt_vad_filter,
-            initial_prompt=prompt,
+            initial_prompt=effective_prompt,
+            no_speech_threshold=0.6,
+            condition_on_previous_text=False,
+            **vad_kwargs,
             **options,
         )
         return list(segments), info

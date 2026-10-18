@@ -1,0 +1,8 @@
+{
+  "total_samples": 477,
+  "source_audit_turns": 349,
+  "source_sqlite_turns": 320,
+  "gold_skill_samples": 5,
+  "alpaca_file": "C:\\Users\\ahiva\\OneDrive\\Desktop\\jarvis\\data\\training\\sft_alpaca.jsonl",
+  "sharegpt_file": "C:\\Users\\ahiva\\OneDrive\\Desktop\\jarvis\\data\\training\\sharegpt_turns.jsonl"
+}

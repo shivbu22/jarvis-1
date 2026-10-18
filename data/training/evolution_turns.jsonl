@@ -1,0 +1,33 @@
+{"id": "evo-b6206438", "timestamp": 1790399769.0400078, "instruction": "Open calculator", "input": "Tools executed: ['app_launch']", "output": "Opening calculator now, sir.", "quality_score": 1.0}
+{"id": "evo-9ab68a62", "timestamp": 1790399781.0393054, "instruction": "Open calculator", "input": "Tools executed: ['app_launch']", "output": "Opening calculator now, sir.", "quality_score": 1.0}
+{"id": "evo-f4cee155", "timestamp": 1790399898.0849216, "instruction": "Open calculator", "input": "Tools executed: ['app_launch']", "output": "Opening calculator now, sir.", "quality_score": 1.0}
+{"id": "evo-b62c9f63", "timestamp": 1790399905.332734, "instruction": "Open calculator", "input": "Tools executed: ['app_launch']", "output": "Opening calculator now, sir.", "quality_score": 1.0}
+{"id": "evo-6a89708c", "timestamp": 1790400690.1749353, "instruction": "good morning", "input": "", "output": "Very good, sir.", "quality_score": 1.0}
+{"id": "evo-826f8da8", "timestamp": 1790400691.4664428, "instruction": "remember to buy saffron", "input": "Tools executed: ['memory_remember']", "output": "Saved.", "quality_score": 1.0}
+{"id": "evo-53b87769", "timestamp": 1790400692.9787357, "instruction": "write a file", "input": "Tools executed: ['fs_write']", "output": "I need permission.", "quality_score": 1.0}
+{"id": "evo-cd38be95", "timestamp": 1790400695.2301366, "instruction": "run git status", "input": "Tools executed: ['shell_run']", "output": "I did not run it.", "quality_score": 1.0}
+{"id": "evo-d10d6a8f", "timestamp": 1790400696.7512243, "instruction": "wipe everything", "input": "Tools executed: ['shell_run']", "output": "No.", "quality_score": 1.0}
+{"id": "evo-aa86fb33", "timestamp": 1790400699.8364685, "instruction": "hello", "input": "", "output": "Very good, sir.", "quality_score": 1.0}
+{"id": "evo-81ff3a7d", "timestamp": 1790400705.034685, "instruction": "hello there", "input": "", "output": "Very good, sir.", "quality_score": 1.0}
+{"id": "evo-eaf426e9", "timestamp": 1790401548.998338, "instruction": "Open calculator", "input": "Tools executed: ['app_launch']", "output": "Opening calculator now, sir.", "quality_score": 1.0}
+{"id": "evo-91030711", "timestamp": 1790401991.32045, "instruction": "Yeah, open here too.", "input": "Tools executed: ['browser_open']", "output": "Is there anything else you'd like to search for, Commander?", "quality_score": 1.0}
+{"id": "evo-1c6ef2bb", "timestamp": 1790402034.111992, "instruction": "Hope on your do.", "input": "Tools executed: ['browser_open']", "output": "Is there anything else you'd like to search for, Commander?", "quality_score": 1.0}
+{"id": "evo-a014cc19", "timestamp": 1790402036.0157528, "instruction": "open youtube", "input": "Tools executed: ['app_launch']", "output": "Opened Youtube, sir.", "quality_score": 1.0}
+{"id": "evo-bc7531c3", "timestamp": 1790402078.7909167, "instruction": "See me and all the I am in any way.", "input": "", "output": "Is there anything else you'd like to search for, Commander?", "quality_score": 1.0}
+{"id": "evo-0ad8e8d8", "timestamp": 1790402094.4342551, "instruction": "We are in the edge of the atmosphere.", "input": "", "output": "We're entering the Earth's atmosphere now, Commander.", "quality_score": 1.0}
+{"id": "evo-2a853caf", "timestamp": 1790402107.1505468, "instruction": "Good, good, good, good, good.", "input": "", "output": "We are entering the Earth's atmosphere now, Commander.", "quality_score": 1.0}
+{"id": "evo-f405f6dc", "timestamp": 1790402756.3004737, "instruction": "Open calculator", "input": "Tools executed: ['app_launch']", "output": "Opening calculator now, sir.", "quality_score": 1.0}
+{"id": "evo-2081b7d6", "timestamp": 1790402857.8769023, "instruction": "Hey there, please.", "input": "", "output": "I'm here, sir.", "quality_score": 1.0}
+{"id": "evo-da8f6020", "timestamp": 1790402866.3305798, "instruction": "Thank you.", "input": "", "output": "How are you doing today?", "quality_score": 1.0}
+{"id": "evo-a1569835", "timestamp": 1790402905.6140552, "instruction": "open youtube", "input": "Tools executed: ['web_open']", "output": "Opening Youtube in your browser, sir.", "quality_score": 1.0}
+{"id": "evo-c08d28d7", "timestamp": 1790403567.9341235, "instruction": "Open YouTube", "input": "Tools executed: ['web_open']", "output": "Opening Youtube in your browser, sir.", "quality_score": 1.0}
+{"id": "evo-b2a7d821", "timestamp": 1790403638.0792954, "instruction": "Hello Jarvis", "input": "", "output": "Hello, sir. How can I assist you today?", "quality_score": 1.0}
+{"id": "evo-c89966c5", "timestamp": 1790403648.1703453, "instruction": "open youtube", "input": "Tools executed: ['web_open']", "output": "Opening Youtube in your browser, sir.", "quality_score": 1.0}
+{"id": "evo-6fe95446", "timestamp": 1790403723.8565965, "instruction": "Play lofi music on YouTube", "input": "Tools executed: ['youtube_play']", "output": "Playing 'lofi music' on YouTube, sir.", "quality_score": 1.0}
+{"id": "evo-cdd144e9", "timestamp": 1790403950.4816031, "instruction": "open youtube", "input": "Tools executed: ['web_open']", "output": "Opening Youtube in your browser, sir.", "quality_score": 1.0}
+{"id": "evo-aa45e865", "timestamp": 1790403966.890891, "instruction": "which browser", "input": "", "output": "Chrome", "quality_score": 1.0}
+{"id": "evo-3cc37607", "timestamp": 1790404202.4457898, "instruction": "open youtube", "input": "Tools executed: ['web_open']", "output": "Opening Youtube in your browser, sir.", "quality_score": 1.0}
+{"id": "evo-fcbbeb4f", "timestamp": 1790405572.3353145, "instruction": "Open YouTube", "input": "Tools executed: ['web_open']", "output": "Opening Youtube in your browser, sir.", "quality_score": 1.0}
+{"id": "evo-904bdaa9", "timestamp": 1790405597.2038667, "instruction": "Sorry.", "input": "Tools executed: ['browser_open']", "output": "Now playing lofi music on YouTube, sir.", "quality_score": 1.0}
+{"id": "evo-3311f130", "timestamp": 1790405601.613264, "instruction": "Thank you very much.", "input": "Tools executed: ['youtube_play']", "output": "Browser is now open, sir.", "quality_score": 1.0}
+{"id": "evo-ccd6b967", "timestamp": 1790405611.9916646, "instruction": "In the end, we will speak to you.", "input": "Tools executed: ['desktop_window_control']", "output": "Window is already minimized, sir.", "quality_score": 1.0}

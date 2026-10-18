@@ -1,0 +1,23 @@
+{
+  "name": "",
+  "preferred_name": "Commander",
+  "timezone": "Asia/Kolkata",
+  "language": "en",
+  "temperature_unit": "celsius",
+  "date_format": "DD/MM/YYYY",
+  "currency": "INR",
+  "communication_style": "concise",
+  "verbosity": "balanced",
+  "wake_word": "Hey Jarvis",
+  "favorite_apps": [
+    "Youtube"
+  ],
+  "work_hours": {
+    "start": "09:00",
+    "end": "18:00"
+  },
+  "interests": [],
+  "custom_preferences": {},
+  "created_at": 1790397256.9807093,
+  "updated_at": 1790402036.0141625
+}

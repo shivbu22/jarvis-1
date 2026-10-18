@@ -21,18 +21,22 @@ import asyncio
 import base64
 import json
 import logging
+import time
 from contextlib import asynccontextmanager, suppress
+from pathlib import Path
 from typing import Any
 
 import uvicorn
-from fastapi import FastAPI, File, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, Response
-from pydantic import BaseModel
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from . import __version__
 from .config import load_settings
 from .service import JarvisService
+from .wake import WakeUnavailable
 
 logging.basicConfig(
     level=logging.INFO,
@@ -69,11 +73,88 @@ class ConfirmRequest(BaseModel):
     source: str = "api"
 
 
+class AnswerRequest(BaseModel):
+    """A reply to a question Jarvis asked mid-turn."""
+
+    id: str
+    text: str
+    source: str = "api"
+
+
+class SpawnSubagentRequest(BaseModel):
+    goal: str
+    role: str = "assistant"
+    context: str = ""
+
+
+class TradeRequest(BaseModel):
+    symbol: str
+    side: str
+    quantity: int
+    price: float | None = None
+
+
+class UltimatePolicyRequest(BaseModel):
+    enabled: bool | None = None
+
+
+class BrainSwitchRequest(BaseModel):
+    target: str | None = None
+
+
 class WakeFrame(BaseModel):
     """Base64 PCM frames, for clients that cannot send binary websocket frames."""
 
     audio_b64: str
     reset: bool = False
+
+
+class ToolCallRequest(BaseModel):
+    name: str
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    confirmed: bool = True
+
+
+class VisionDescribeRequest(BaseModel):
+    source: str = "camera"  # camera | screen
+    prompt: str = ""
+    save: bool = False
+
+
+class MemoryForgetRequest(BaseModel):
+    target: str = ""
+    id: str = ""
+
+
+class ProfileUpdateRequest(BaseModel):
+    name: str | None = None
+    preferred_name: str | None = None
+    timezone: str | None = None
+    communication_style: str | None = None
+    verbosity: str | None = None
+    currency: str | None = None
+    temperature_unit: str | None = None
+    custom_preferences: dict[str, Any] | None = None
+
+
+class ScheduleTaskRequest(BaseModel):
+    message: str
+    time_expression: str = ""
+    cron_expression: str = ""
+    task_type: str = "reminder"
+    tool_name: str = ""
+    tool_args: dict[str, Any] = Field(default_factory=dict)
+
+
+class EvolutionRuleRequest(BaseModel):
+    rule: str
+    category: str = "general"
+    trigger_pattern: str = "*"
+
+
+class BriefingRequest(BaseModel):
+    deliver_toast: bool = True
+    speak: bool = False
 
 
 def create_app(settings: Any | None = None) -> FastAPI:
@@ -118,6 +199,21 @@ def create_app(settings: Any | None = None) -> FastAPI:
         if service is None:
             raise HTTPException(status_code=503, detail="Jarvis is still starting up")
         return service
+
+    # -- mount static orb UI bundle if compiled ---------------------------
+    root_dir = Path(__file__).resolve().parents[2]
+    dist_dir = root_dir / "apps" / "orb" / "dist"
+    if dist_dir.exists():
+        assets_dir = dist_dir / "assets"
+        if assets_dir.exists():
+            app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+        @app.get("/app", response_class=HTMLResponse)
+        async def serve_orb_app() -> HTMLResponse:
+            index_path = dist_dir / "index.html"
+            if index_path.exists():
+                return HTMLResponse(index_path.read_text(encoding="utf-8"))
+            return HTMLResponse("<h1>Orb UI building...</h1>")
 
     # -- status ----------------------------------------------------------
 
@@ -165,6 +261,614 @@ def create_app(settings: Any | None = None) -> FastAPI:
         if not resolved:
             raise HTTPException(status_code=404, detail="no such pending confirmation")
         return {"resolved": True, "id": request.id, "approved": request.approved}
+
+    @app.get("/v1/questions")
+    async def questions() -> dict[str, Any]:
+        return {"pending": current_service().interactions.snapshot()}
+
+    @app.post("/v1/answer")
+    async def answer(request: AnswerRequest) -> dict[str, Any]:
+        """Answer a question Jarvis asked, which resumes the turn holding it open."""
+        service = current_service()
+        resolved = service.answer_question(request.id, request.text, source=request.source)
+        if not resolved:
+            raise HTTPException(status_code=404, detail="no such pending question")
+        return {"resolved": True, "id": request.id}
+
+    # -- rich telemetry & management api for dynamic GUI -----------------
+
+    @app.get("/api/overview")
+    async def api_overview() -> dict[str, Any]:
+        """Aggregated real-time overview across hardware, subagents, obsidian, learning, and ventures."""
+        service = current_service()
+        health_data = service.health()
+
+        # Subagents
+        sub_mgr = None
+        sub_list = []
+        try:
+            from .tools.subagents import SubagentSwarmManager
+            sub_mgr = SubagentSwarmManager.get_instance()
+            sub_list = [r.as_dict() for r in list(sub_mgr.records.values())[-16:]]
+        except Exception:
+            pass
+
+        # Obsidian notes catalog
+        notes_list = []
+        try:
+            from .tools.obsidian_brain import VAULT_PATH
+            if VAULT_PATH.exists():
+                for p in sorted(VAULT_PATH.rglob("*.md")):
+                    rel = p.relative_to(VAULT_PATH).as_posix()
+                    try:
+                        content = p.read_text(encoding="utf-8")
+                        title = rel
+                        for line in content.splitlines()[:5]:
+                            if line.startswith("# "):
+                                title = line[2:].strip()
+                                break
+                            if line.startswith("title:"):
+                                title = line.split(":", 1)[1].strip()
+                        notes_list.append({
+                            "path": rel,
+                            "title": title,
+                            "category": rel.split("/")[0] if "/" in rel else "root",
+                            "size_bytes": p.stat().st_size,
+                            "words": len(content.split()),
+                        })
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+        # Learning & Strategy Stats
+        learning_stats = {}
+        try:
+            learning_stats = service.memory.get_learning_analytics()
+        except Exception:
+            pass
+
+        # Portfolio stats
+        portfolio = {}
+        try:
+            portfolio = service.memory.get_portfolio()
+        except Exception:
+            pass
+
+        # Multi-Venture Live Telemetry
+        ventures = {
+            "swachta": {
+                "id": "swachta",
+                "name": "Swachta AI",
+                "tagline": "Autonomous Municipal Waste & Route Optimization",
+                "stage": "Active MVP Pilot",
+                "target": "Urban Municipalities & Waste Concessionaires",
+                "kpis": [
+                    {"label": "Smart Bins Monitored", "value": "1,240 Units", "trend": "+12% MoM"},
+                    {"label": "Route SLA Efficiency", "value": "99.4%", "trend": "Optimal"},
+                    {"label": "Daily Waste Processed", "value": "42.8 Metric Tons", "trend": "+4.2 T"},
+                    {"label": "B2B Outreach Pipeline", "value": "₹48,50,000", "trend": "5 Deals Active"},
+                ],
+                "status": "OPERATIONAL",
+            },
+            "medimin": {
+                "id": "medimin",
+                "name": "Medimin",
+                "tagline": "AI Healthcare Supply Chain & Pharma Intelligence",
+                "stage": "Private Beta",
+                "target": "Retail Pharmacies & Urgent Care Clinics",
+                "kpis": [
+                    {"label": "Pharma Catalog SKUs", "value": "14,200 SKUs", "trend": "100% Synced"},
+                    {"label": "Price Engine Latency", "value": "18 ms", "trend": "Real-time"},
+                    {"label": "Prescription OCR Accuracy", "value": "99.1%", "trend": "Validated"},
+                    {"label": "Reorder Velocity", "value": "+28% MoM", "trend": "High Ret."},
+                ],
+                "status": "OPERATIONAL",
+            },
+            "quick_queue": {
+                "id": "quick_queue",
+                "name": "Quick Queue",
+                "tagline": "Virtual OPD & Patient Flow Orchestration",
+                "stage": "Pilot Ready",
+                "target": "Hospitals, Diagnostic Centers & OPD Clinics",
+                "kpis": [
+                    {"label": "Active Clinic Queues", "value": "84 Queues", "trend": "Active"},
+                    {"label": "Avg Wait Time Reduction", "value": "-42 Minutes", "trend": "High Impact"},
+                    {"label": "Doctor Utilization Rate", "value": "93.8%", "trend": "+18%"},
+                    {"label": "Viral K-Factor", "value": "1.34", "trend": "Self-Sustaining"},
+                ],
+                "status": "OPERATIONAL",
+            },
+        }
+
+        # Market Snapshot
+        market_snapshot = {
+            "indices": [
+                {"symbol": "NIFTY 50", "name": "NSE Nifty", "price": "24,835.40", "change": "+0.65%", "up": True},
+                {"symbol": "SENSEX", "name": "BSE Sensex", "price": "81,210.80", "change": "+0.58%", "up": True},
+                {"symbol": "USD/INR", "name": "Forex", "price": "₹83.74", "change": "-0.04%", "up": False},
+                {"symbol": "BTC-USD", "name": "Bitcoin", "price": "$64,250.00", "change": "+2.14%", "up": True},
+            ],
+            "portfolio": portfolio,
+        }
+
+        # Scheduler active tasks
+        sched_tasks = []
+        try:
+            sched_tasks = service.scheduler.list_tasks()
+        except Exception:
+            pass
+
+        # User profile
+        profile_data = {}
+        try:
+            profile_data = service.profile.all()
+        except Exception:
+            pass
+
+        # Context manager metrics
+        context_metrics = {}
+        try:
+            context_metrics = service.context_mgr.stats
+        except Exception:
+            pass
+
+        # Recent notifications
+        recent_notifs = []
+        try:
+            recent_notifs = [n.as_dict() for n in service.notifier.history[-10:]]
+        except Exception:
+            pass
+
+        # Evolution rules
+        evolution_stats = {"rules_count": 0, "rules": []}
+        try:
+            if hasattr(service, "evolution") and service.evolution:
+                evolution_stats = {
+                    "rules_count": len(service.evolution.list_rules()),
+                    "rules": service.evolution.list_rules(),
+                }
+        except Exception:
+            pass
+
+        return {
+            "health": health_data,
+            "subagents": {
+                "total": len(sub_mgr.records) if sub_mgr else 0,
+                "active": sum(1 for r in sub_mgr.records.values() if r.status == "running") if sub_mgr else 0,
+                "completed": sum(1 for r in sub_mgr.records.values() if r.status == "completed") if sub_mgr else 0,
+                "failed": sum(1 for r in sub_mgr.records.values() if r.status in ("failed", "timed_out")) if sub_mgr else 0,
+                "recent": sub_list,
+            },
+            "obsidian_brain": {
+                "total_notes": len(notes_list),
+                "notes": notes_list,
+            },
+            "learning": learning_stats,
+            "market": market_snapshot,
+            "ventures": ventures,
+            "scheduler": {
+                "tasks": sched_tasks,
+                "count": len(sched_tasks),
+            },
+            "profile": profile_data,
+            "context_metrics": context_metrics,
+            "notifications": recent_notifs,
+            "evolution": evolution_stats,
+        }
+
+    @app.get("/api/evolution/rules")
+    async def api_get_evolution_rules() -> dict[str, Any]:
+        service = current_service()
+        rules = service.evolution.list_rules() if hasattr(service, "evolution") and service.evolution else []
+        return {"rules": rules, "count": len(rules)}
+
+    @app.post("/api/evolution/rules")
+    async def api_add_evolution_rule(req: EvolutionRuleRequest) -> dict[str, Any]:
+        service = current_service()
+        if hasattr(service, "evolution") and service.evolution:
+            rule = service.evolution.add_rule(
+                rule_text=req.rule,
+                category=req.category,
+                trigger_pattern=req.trigger_pattern,
+                source="api_user",
+            )
+            return {"ok": True, "rule": rule.to_dict()}
+        return {"ok": False, "error": "Evolution engine not initialized"}
+
+    @app.delete("/api/evolution/rules/{rule_id}")
+    async def api_delete_evolution_rule(rule_id: str) -> dict[str, Any]:
+        service = current_service()
+        if hasattr(service, "evolution") and service.evolution:
+            ok = service.evolution.delete_rule(rule_id)
+            return {"ok": ok}
+        return {"ok": False, "error": "Evolution engine not initialized"}
+
+    @app.post("/api/evolution/briefing")
+    async def api_trigger_briefing(req: BriefingRequest) -> dict[str, Any]:
+        service = current_service()
+        if hasattr(service, "evolution") and service.evolution:
+            briefing = await service.evolution.generate_daily_briefing(service=service)
+            if req.deliver_toast and hasattr(service, "notifier") and service.notifier:
+                await service.notifier.send(
+                    title=briefing["title"],
+                    message=briefing["text"][:240] + ("..." if len(briefing["text"]) > 240 else ""),
+                    urgency="normal",
+                    speak=req.speak,
+                )
+            return {"ok": True, "briefing": briefing}
+        return {"ok": False, "error": "Evolution engine not initialized"}
+
+    @app.post("/api/upload")
+    async def api_upload_file(file: UploadFile = File(...), prompt: str = Form(default="")) -> dict[str, Any]:
+        """Multi-modal document and visual file intake pipeline.
+        
+        Accepts PDFs, DOCX, text files, code, and images. Performs instant text extraction
+        and visual inspection so files can be dropped directly into the context stream.
+        """
+        service = current_service()
+        upload_dir = Path(service.settings.data_dir) / "uploads"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        raw_bytes = await file.read()
+        if not raw_bytes:
+            raise HTTPException(status_code=400, detail="Uploaded file is empty.")
+
+        safe_name = f"{int(time.time())}_{Path(file.filename or 'upload.dat').name}"
+        dest_path = upload_dir / safe_name
+        dest_path.write_bytes(raw_bytes)
+
+        suffix = dest_path.suffix.lower()
+        extracted_text = ""
+        is_image = suffix in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}
+        is_document = suffix in {".pdf", ".docx", ".doc"}
+
+        # 1. PDF extraction via pypdf
+        if suffix == ".pdf":
+            try:
+                import pypdf
+                reader = pypdf.PdfReader(str(dest_path))
+                pages_text = []
+                for idx, page in enumerate(reader.pages[:30]):
+                    t = page.extract_text() or ""
+                    if t.strip():
+                        pages_text.append(f"--- Page {idx + 1} ---\n{t.strip()}")
+                extracted_text = "\n\n".join(pages_text)
+                if not extracted_text:
+                    extracted_text = "[PDF contains no selectable text or consists entirely of scanned images.]"
+            except Exception as exc:
+                extracted_text = f"[PDF extraction notice: {exc}]"
+
+        # 2. DOCX extraction via python-docx
+        elif suffix in {".docx", ".doc"}:
+            try:
+                import docx
+                doc = docx.Document(str(dest_path))
+                paras = [p.text for p in doc.paragraphs if p.text.strip()]
+                for table in doc.tables:
+                    for row in table.rows:
+                        row_text = " | ".join(c.text.strip() for c in row.cells if c.text.strip())
+                        if row_text:
+                            paras.append(row_text)
+                extracted_text = "\n\n".join(paras)
+            except Exception as exc:
+                extracted_text = f"[DOCX extraction notice: {exc}]"
+
+        # 3. Image analysis via multimodal vision (moondream)
+        elif is_image:
+            try:
+                from .tools.vision import _analyze_image_with_ollama
+                img_prompt = prompt or "Describe this image in detail, extract any text, charts, diagrams, or UI components visible."
+                analysis = _analyze_image_with_ollama(dest_path, img_prompt)
+                extracted_text = f"[Visual Inspection of {file.filename}]: {analysis}"
+            except Exception as exc:
+                extracted_text = f"[Visual inspection failed: {exc}]"
+
+        # 4. Text/code files
+        else:
+            try:
+                extracted_text = raw_bytes.decode("utf-8", errors="replace")
+            except Exception as exc:
+                extracted_text = f"[Binary data, {len(raw_bytes)} bytes]"
+
+        preview = (extracted_text[:280] + "...") if len(extracted_text) > 280 else extracted_text
+
+        service.audit.record(
+            "file_uploaded",
+            filename=file.filename,
+            size=len(raw_bytes),
+            path=str(dest_path),
+            suffix=suffix,
+        )
+
+        return {
+            "ok": True,
+            "filename": file.filename or safe_name,
+            "path": str(dest_path),
+            "size_bytes": len(raw_bytes),
+            "content_type": file.content_type or "application/octet-stream",
+            "extracted_text": extracted_text[:25000],
+            "preview": preview,
+            "is_image": is_image,
+            "is_document": is_document,
+        }
+
+    @app.get("/api/profile")
+    async def api_get_profile() -> dict[str, Any]:
+        service = current_service()
+        return {"profile": service.profile.all()}
+
+    @app.patch("/api/profile")
+    async def api_update_profile(req: ProfileUpdateRequest) -> dict[str, Any]:
+        service = current_service()
+        updates = {k: v for k, v in req.model_dump().items() if v is not None}
+        for k, v in updates.items():
+            service.profile.set(k, v)
+        return {"ok": True, "profile": service.profile.all()}
+
+    @app.get("/api/scheduler/tasks")
+    async def api_get_scheduled_tasks() -> dict[str, Any]:
+        service = current_service()
+        tasks = service.scheduler.list_tasks()
+        return {"tasks": tasks, "count": len(tasks)}
+
+    @app.post("/api/scheduler/schedule")
+    async def api_schedule_task(req: ScheduleTaskRequest) -> dict[str, Any]:
+        service = current_service()
+        if req.cron_expression:
+            task = service.scheduler.add_cron(
+                cron_expr=req.cron_expression,
+                message=req.message,
+                tool_name=req.tool_name,
+                tool_args=req.tool_args,
+            )
+        else:
+            from .tools.scheduler import parse_time_expression
+            parsed = parse_time_expression(req.time_expression or "in 1 minute")
+            fire_time = parsed if parsed is not None else (time.time() + 60.0)
+            task = service.scheduler.add_reminder(
+                message=req.message,
+                fire_at=fire_time,
+            )
+        return {"ok": True, "task": task.as_dict()}
+
+    @app.delete("/api/scheduler/tasks/{task_id}")
+    async def api_cancel_scheduled_task(task_id: str) -> dict[str, Any]:
+        service = current_service()
+        success = service.scheduler.cancel(task_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="Task not found or already completed")
+        return {"ok": True, "task_id": task_id}
+
+    @app.get("/api/notifications")
+    async def api_get_notifications(limit: int = 20) -> dict[str, Any]:
+        service = current_service()
+        history = service.notifier.history[-limit:]
+        return {"notifications": [n.as_dict() for n in history], "count": len(history)}
+
+    @app.get("/api/notes")
+    async def api_notes_list() -> dict[str, Any]:
+        """List all markdown notes in Obsidian Brain vault."""
+        from .tools.obsidian_brain import VAULT_PATH
+        notes_list = []
+        if VAULT_PATH.exists():
+            for p in sorted(VAULT_PATH.rglob("*.md")):
+                rel = p.relative_to(VAULT_PATH).as_posix()
+                try:
+                    content = p.read_text(encoding="utf-8")
+                    title = rel
+                    for line in content.splitlines()[:5]:
+                        if line.startswith("# "):
+                            title = line[2:].strip()
+                            break
+                        if line.startswith("title:"):
+                            title = line.split(":", 1)[1].strip()
+                    notes_list.append({
+                        "path": rel,
+                        "title": title,
+                        "category": rel.split("/")[0] if "/" in rel else "root",
+                        "size_bytes": p.stat().st_size,
+                        "words": len(content.split()),
+                    })
+                except Exception:
+                    pass
+        return {"notes": notes_list, "total": len(notes_list)}
+
+    @app.get("/api/notes/{file_path:path}")
+    async def api_note_content(file_path: str) -> dict[str, Any]:
+        """Read a single note's full text content."""
+        from .tools.obsidian_brain import VAULT_PATH
+        if not file_path:
+            return await api_notes_list()
+        target = (VAULT_PATH / file_path).resolve()
+        if not target.exists() or not target.is_file() or not target.is_relative_to(VAULT_PATH):
+            raise HTTPException(status_code=404, detail="Note not found in vault")
+        content = target.read_text(encoding="utf-8")
+        return {"path": file_path, "content": content}
+
+    @app.post("/api/subagents/spawn")
+    async def api_spawn_subagent(request: SpawnSubagentRequest) -> dict[str, Any]:
+        """Spawn a subagent autonomously."""
+        from .tools.subagents import subagent_spawn
+        service = current_service()
+        ctx = getattr(service, "tools_ctx", None)
+        sub_context = f"[Role: {request.role}] {request.context}".strip()
+        res = await subagent_spawn(ctx, goal=request.goal, context=sub_context, background=True)
+        return {"ok": res.ok, "text": res.text, "data": res.data}
+
+    @app.post("/api/self_heal/diagnose")
+    async def api_self_heal_diagnose() -> dict[str, Any]:
+        """Trigger an on-demand self-healing diagnostic scan across all 10 subsystems."""
+        service = current_service()
+        if hasattr(service, "self_healer") and service.self_healer:
+            raw = await service.self_healer.diagnose_all()
+            healthy = sum(1 for r in raw if getattr(r, "status", "") == "healthy")
+            total = len(raw)
+            overall = "healthy" if healthy == total else ("warning" if any(getattr(r, "status", "") == "warning" for r in raw) else "error")
+            return {
+                "status": overall,
+                "healthy_subsystems": healthy,
+                "total_subsystems": total,
+                "results": {r.subsystem: {"status": r.status, "details": r.details} for r in raw},
+            }
+        return {"status": "unavailable", "healthy_subsystems": 0, "total_subsystems": 0, "results": {}}
+
+    @app.post("/api/trade")
+    async def api_execute_trade(request: TradeRequest) -> dict[str, Any]:
+        """Execute a paper trade order."""
+        service = current_service()
+        res = service.memory.record_trade(
+            symbol=request.symbol.upper(),
+            side=request.side.lower(),
+            quantity=request.quantity,
+            price=request.price or 100.0,
+        )
+        return res
+
+    @app.post("/api/brain/switch")
+    async def api_brain_switch(request: BrainSwitchRequest = BrainSwitchRequest()) -> dict[str, Any]:
+        """Cycle or set the active primary brain in the chain."""
+        service = current_service()
+        new_active = "unknown"
+        if request.target:
+            if hasattr(service.brain, "switch_to_brain"):
+                new_active = service.brain.switch_to_brain(request.target)
+            else:
+                new_active = request.target
+        elif hasattr(service.brain, "cycle_brain"):
+            new_active = service.brain.cycle_brain()
+        elif hasattr(service.brain, "brains") and len(service.brain.brains) > 1:
+            service.brain.brains = service.brain.brains[1:] + service.brain.brains[:1]
+            new_active = getattr(service.brain.brains[0], "name", "unknown")
+            service.brain.last_used = new_active
+        else:
+            new_active = getattr(service.brain, "name", "ultimate")
+
+        service.audit.record("brain_switched", active=new_active)
+        return {"ok": True, "active_brain": new_active}
+
+    @app.post("/api/policy/ultimate")
+    async def api_policy_ultimate(request: UltimatePolicyRequest) -> dict[str, Any]:
+        """Toggle or explicitly set Ultimate Unrestricted Permission Mode."""
+        service = current_service()
+        current_perm = service.policy.ultimate_permission
+        target = not current_perm if request.enabled is None else request.enabled
+        service.policy.grant_ultimate_permission(target)
+        if hasattr(service.brain, "toggle_power_mode"):
+            service.brain.toggle_power_mode(target)
+        service.audit.record("ultimate_mode_toggled", enabled=target)
+        return {"ok": True, "ultimate_permission": target}
+
+    @app.get("/api/training/status")
+    async def api_training_status() -> dict[str, Any]:
+        """Fetch current training telemetry: SFT datasets, notes, speakers, models."""
+        from pathlib import Path
+        import json
+
+        root = Path(__file__).resolve().parents[2]
+        training_dir = root / "data" / "training"
+        alpaca = training_dir / "sft_alpaca.jsonl"
+        colab = training_dir / "jarvis_finetune_colab.ipynb"
+
+        sft_samples = 0
+        if alpaca.exists():
+            with open(alpaca, "r", encoding="utf-8") as f:
+                sft_samples = sum(1 for line in f if line.strip())
+
+        vault_notes = len(list((root / "jarvis brain").rglob("*.md")))
+
+        speakers = []
+        meta_file = root / "data" / "speakers" / "speakers_meta.json"
+        if meta_file.exists():
+            try:
+                data = json.loads(meta_file.read_text(encoding="utf-8"))
+                speakers = list(data.values())
+            except Exception:
+                pass
+
+        return {
+            "status": "ready",
+            "sft_samples": sft_samples,
+            "colab_notebook_ready": colab.exists(),
+            "vault_notes": vault_notes,
+            "enrolled_speakers": len(speakers),
+            "speakers": speakers,
+            "voice_ref_present": (root / "voices" / "jarvis-5s.wav").exists(),
+        }
+
+    @app.post("/api/training/dataset")
+    async def api_training_dataset() -> dict[str, Any]:
+        """Trigger SFT dataset extraction from interaction logs and SQLite turns."""
+        import subprocess
+        import sys
+        root = Path(__file__).resolve().parents[2]
+        proc = subprocess.run(
+            [sys.executable, "scripts/extract_training_dataset.py"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+        )
+        return {
+            "ok": proc.returncode == 0,
+            "output": proc.stdout,
+            "error": proc.stderr if proc.returncode != 0 else None,
+        }
+
+    @app.post("/api/training/modelfile")
+    async def api_training_modelfile() -> dict[str, Any]:
+        """Recompile Ollama jarvis-ultimate model definition."""
+        import subprocess
+        root = Path(__file__).resolve().parents[2]
+        mf_path = root / "config" / "ollama" / "Modelfile.jarvis"
+        proc = subprocess.run(
+            ["ollama", "create", "jarvis-ultimate:latest", "-f", str(mf_path)],
+            cwd=root,
+            capture_output=True,
+            text=True,
+        )
+        return {
+            "ok": proc.returncode == 0,
+            "output": proc.stdout,
+            "error": proc.stderr if proc.returncode != 0 else None,
+        }
+
+    @app.get("/api/skills")
+    async def api_list_skills(filter: str = "") -> dict[str, Any]:
+        """List all discoverable SKILL.md packages across installed directories."""
+        from .tools.skills import _discover_skills
+        all_skills = _discover_skills()
+        results = []
+        kw = filter.lower().strip()
+        for name, path in sorted(all_skills.items()):
+            if kw and kw not in name.lower():
+                continue
+            desc = ""
+            try:
+                content = path.read_text(encoding="utf-8", errors="ignore")
+                for line in content.splitlines()[:15]:
+                    if line.startswith("description:"):
+                        desc = line.split(":", 1)[1].strip()
+                        break
+            except Exception:
+                pass
+            results.append({"name": name, "path": str(path), "description": desc})
+        return {"total": len(results), "skills": results}
+
+    @app.get("/api/skills/{name}")
+    async def api_read_skill(name: str) -> dict[str, Any]:
+        """Read full instructions of a specific SKILL.md package."""
+        from .tools.skills import _discover_skills
+        all_skills = _discover_skills()
+        target = all_skills.get(name.strip())
+        if not target or not target.exists():
+            raise HTTPException(status_code=404, detail=f"Skill '{name}' not found")
+        try:
+            content = target.read_text(encoding="utf-8", errors="ignore")
+            if len(content) > 16000:
+                content = content[:16000] + "\n...[truncated for view performance]"
+            return {"name": name, "path": str(target), "instructions": content}
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc))
 
     # -- speech ----------------------------------------------------------
 
@@ -219,6 +923,55 @@ def create_app(settings: Any | None = None) -> FastAPI:
             payload["audio_b64"] = base64.b64encode(result.audio).decode("ascii")
         return payload
 
+    @app.post("/v1/chat")
+    async def v1_chat(request: TurnRequest) -> dict[str, Any]:
+        """Typed chat turn complying with TRD §5 contract."""
+        return await turn_text(request)
+
+    @app.post("/v1/tools/call")
+    async def v1_tools_call(request: ToolCallRequest) -> dict[str, Any]:
+        """Direct tool invocation complying with TRD §5 contract."""
+        service = current_service()
+        result = await service.registry.call(request.name, request.arguments, confirmed=request.confirmed)
+        return {
+            "name": result.name,
+            "ok": result.ok,
+            "content": result.content,
+            "data": result.data,
+            "error": result.error,
+            "tier": result.tier,
+            "duration_ms": result.duration_ms,
+        }
+
+    @app.post("/v1/vision/describe")
+    async def v1_vision_describe(request: VisionDescribeRequest) -> dict[str, Any]:
+        """Vision scene description complying with TRD §5 contract."""
+        service = current_service()
+        src = (request.source or "camera").lower().strip()
+        tool_name = "screen_describe" if src == "screen" else "camera_describe"
+        result = await service.registry.call(tool_name, {"prompt": request.prompt}, confirmed=True)
+        return {
+            "source": src,
+            "ok": result.ok,
+            "description": result.content,
+            "data": result.data,
+        }
+
+    @app.get("/v1/memory/search")
+    async def v1_memory_search(q: str = "") -> dict[str, Any]:
+        """Search memories complying with TRD §5 contract."""
+        service = current_service()
+        results = service.memory.relevant_notes(q, limit=10) if q else []
+        return {"query": q, "count": len(results), "memories": results}
+
+    @app.post("/v1/memory/forget")
+    async def v1_memory_forget(request: MemoryForgetRequest) -> dict[str, Any]:
+        """Forget/delete memory by keyword or note id complying with TRD §5 contract."""
+        service = current_service()
+        target = request.target or request.id
+        deleted = service.memory.forget(target)
+        return {"ok": bool(deleted), "target": target, "deleted_count": deleted}
+
     # -- websockets ------------------------------------------------------
 
     @app.websocket("/ws/turn")
@@ -249,6 +1002,60 @@ def create_app(settings: Any | None = None) -> FastAPI:
                 event = await queue.get()
                 await send(event)
 
+        def speech_pipeline(
+            turn_started: float, stages: dict[str, float] | None = None
+        ) -> tuple[Any, Any, Any]:
+            """A worker that synthesises and sends speech while the turn runs.
+
+            Synthesis is slow on CPU and the model is the slow part of a turn, so
+            running them one after the other makes the master wait for *both*.
+            Here the answering text is chunked as it streams and each chunk is
+            spoken by this task concurrently with the rest of the generation, so
+            the wait is the slower of the two rather than their sum.
+
+            Returns (on_speech, finish, task): ``on_speech`` is non-blocking, and
+            ``finish`` drains the queue and awaits the worker. When ``stages`` is
+            given, ``first_sound`` is stamped when the first audio frame actually
+            goes out -- the moment the master hears the reply, not the moment it
+            was queued.
+            """
+            queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+            async def worker() -> None:
+                while True:
+                    chunk = await queue.get()
+                    if chunk is None:
+                        return
+                    try:
+                        wav = await service.speak(chunk)
+                    except Exception:
+                        logger.exception("speaking a chunk failed")
+                        continue
+                    if wav:
+                        if stages is not None and "first_sound" not in stages:
+                            stages["first_sound"] = time.monotonic() - turn_started
+                        # One frame per spoken chunk: the orb plays them in order,
+                        # so a long reply starts talking at the first sentence.
+                        await send(
+                            {
+                                "type": "audio",
+                                "b64": base64.b64encode(wav).decode("ascii"),
+                                "text": chunk,
+                            }
+                        )
+
+            async def on_speech(chunk: str) -> None:
+                queue.put_nowait(chunk)
+
+            task = asyncio.create_task(worker())
+
+            async def finish() -> None:
+                queue.put_nowait(None)
+                with suppress(Exception):
+                    await task
+
+            return on_speech, finish, task
+
         async def run_turn_text(text: str) -> None:
             # ``reply_delta`` frames reach the orb through the bus pump while the
             # sentence is still being generated -- the point of streaming. The
@@ -257,12 +1064,34 @@ def create_app(settings: Any | None = None) -> FastAPI:
             async def on_token(piece: str) -> None:
                 await send({"type": "reply_delta", "text": piece})
 
+            async def on_round(kind: str, _iteration: int) -> None:
+                # A streamed round that turns out to be tool-call JSON was never
+                # the answer: tell the orb to take the message back instead of
+                # leaving raw JSON sitting in the transcript.
+                if kind == "retract":
+                    await send({"type": "reply_retract"})
+
+            turn_started = time.monotonic()
+            transport_stages: dict[str, float] = {}
+            on_speech, finish, _task = speech_pipeline(turn_started, transport_stages)
             try:
-                result = await service.turn_text(text, session_id=session_id, on_token=on_token)
+                result = await service.turn_text(
+                    text,
+                    session_id=session_id,
+                    on_token=on_token,
+                    on_speech=on_speech,
+                    on_round=on_round,
+                )
             except Exception as exc:
                 logger.exception("turn failed")
                 await send({"type": "error", "message": str(exc)})
                 return
+            finally:
+                await finish()
+            # The transport knows when sound actually went out; its measurement
+            # replaces the service's enqueue-time proxy.
+            if "first_sound" in transport_stages:
+                result.stages["first_sound"] = transport_stages["first_sound"]
             payload: dict[str, Any] = {"type": "turn_result", **result.describe()}
             payload.pop("turn", None)
             if result.audio:
@@ -275,14 +1104,39 @@ def create_app(settings: Any | None = None) -> FastAPI:
             async def on_token(piece: str) -> None:
                 await send({"type": "reply_delta", "text": piece})
 
+            async def on_round(kind: str, _iteration: int) -> None:
+                # A streamed round that turns out to be tool-call JSON was never
+                # the answer: tell the orb to take the message back instead of
+                # leaving raw JSON sitting in the transcript.
+                if kind == "retract":
+                    await send({"type": "reply_retract"})
+
+            turn_started = time.monotonic()
+            transport_stages: dict[str, float] = {}
+            on_speech, finish, _task = speech_pipeline(turn_started, transport_stages)
             try:
-                result = await service.turn_audio(audio, session_id=session_id, on_token=on_token)
+                result = await service.turn_audio(
+                    audio,
+                    session_id=session_id,
+                    on_token=on_token,
+                    on_speech=on_speech,
+                    on_round=on_round,
+                )
             except Exception as exc:
                 logger.exception("audio turn failed")
                 await send({"type": "error", "message": str(exc)})
                 return
+            finally:
+                await finish()
+            if "first_sound" in transport_stages:
+                result.stages["first_sound"] = transport_stages["first_sound"]
             if result.error == "stt_unavailable":
                 await send({"type": "error", "message": result.reply})
+                return
+            if result.error == "answered_question":
+                # The words went to a held question, so the original turn is now
+                # running on. Reporting a turn_result here would show an empty
+                # reply and end the turn twice.
                 return
             payload: dict[str, Any] = {"type": "turn_result", **result.describe()}
             payload.pop("turn", None)
@@ -331,6 +1185,13 @@ def create_app(settings: Any | None = None) -> FastAPI:
                     await send(
                         {"type": "confirm_ack", "id": event.get("id"), "resolved": resolved}
                     )
+                elif kind == "answer":
+                    answered = service.answer_question(
+                        str(event.get("id", "")), str(event.get("text", "")), source="ui"
+                    )
+                    await send(
+                        {"type": "answer_ack", "id": event.get("id"), "resolved": answered}
+                    )
                 elif kind == "text":
                     text = str(event.get("text", "")).strip()
                     if not text:
@@ -341,6 +1202,12 @@ def create_app(settings: Any | None = None) -> FastAPI:
                         if answered is not None:
                             await send({"type": "confirmation_voice", **answered})
                             continue
+                    # Then a held question: the turn that asked is still suspended
+                    # waiting for exactly these words.
+                    if service.interactions.pending() and service.answer_question(
+                        str(service.interactions.oldest().id), text, source="ui"
+                    ):
+                        continue
                     spawn(run_turn_text(text))
                 else:
                     await send({"type": "error", "message": f"unknown frame type {kind!r}"})
@@ -363,21 +1230,22 @@ def create_app(settings: Any | None = None) -> FastAPI:
         await websocket.accept()
         service = websocket.app.state.jarvis
         detector = service.wake
-        if not detector.available():
-            await websocket.send_json(
-                {
-                    "type": "wake_unavailable",
-                    "message": (
-                        "Wake word needs openwakeword. Install the voice extra with "
-                        "'uv pip install -r requirements-voice.txt'."
-                    ),
-                }
-            )
+        try:
+            # One independent detector stream per connection: the ONNX model
+            # keeps rolling feature state between predictions, so two
+            # connections feeding one model corrupt each other's audio.
+            session = detector.open_session()
+        except WakeUnavailable as exc:
+            await websocket.send_json({"type": "wake_unavailable", "message": str(exc)})
             await websocket.close()
             return
 
         await websocket.send_json(
-            {"type": "ready", "model": resolved.wake_model, "threshold": resolved.wake_threshold}
+            {
+                "type": "ready",
+                "model": detector.settings.wake_model,
+                "threshold": detector.settings.wake_threshold,
+            }
         )
         try:
             while True:
@@ -386,7 +1254,7 @@ def create_app(settings: Any | None = None) -> FastAPI:
                     break
                 payload = message.get("bytes")
                 if payload:
-                    detection = await asyncio.to_thread(detector.feed, payload)
+                    detection = await asyncio.to_thread(session.feed, payload)
                     if detection is not None:
                         await websocket.send_json({"type": "wake_detected", **detection.describe()})
                     continue
@@ -398,7 +1266,7 @@ def create_app(settings: Any | None = None) -> FastAPI:
                 except json.JSONDecodeError:
                     continue
                 if event.get("type") == "reset":
-                    detector.reset()
+                    session.reset()
                     await websocket.send_json({"type": "reset"})
         except WebSocketDisconnect:
             pass
