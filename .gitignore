@@ -39,3 +39,5 @@ apps/orb/.vite/
 # --- OS / editor ---
 .DS_Store
 Thumbs.db
+
+.github/
